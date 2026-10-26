@@ -11,7 +11,7 @@ export function FrontPicker({ students, front, onChange }: Props) {
   return (
     <fieldset className="panel">
       <legend>Élèves à placer devant</legend>
-      <p className="hint">Le premier rang des VIP : une couronne 👑 les signale sur le plan.</p>
+      <p className="hint">Placés dans les deux premiers rangs, les VIP : une couronne 👑 les signale sur le plan.</p>
       <div className="chips">
         {students.map((s) => (
           <button

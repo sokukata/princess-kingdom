@@ -4,7 +4,7 @@ import { buildSeats, parseSeatKey, tableKey, type Seat } from './room.ts'
 
 // Starting values, checked by the solver tests.
 export const WEIGHTS = {
-  front: 30, // × row², row 0 being next to the board
+  front: 30, // × (rows behind the second one)², row 0 being next to the board
   together: 50,
   mix: 8,
   previous: [15, 10, 5], // tablemates in the last, second-to-last and third-to-last validated plans
@@ -35,7 +35,8 @@ export function separationCost(a: Seat, b: Seat, tablesPerRow: number): number {
 
 export const togetherCost = (a: Seat, b: Seat) => (a.row === b.row && a.table === b.table ? 0 : WEIGHTS.together)
 
-export const frontCost = (row: number) => WEIGHTS.front * row * row
+// The teacher counts the first two rows as the front.
+export const frontCost = (row: number) => WEIGHTS.front * Math.max(0, row - 1) ** 2
 
 export const fillCost = (row: number) => WEIGHTS.fill * row
 

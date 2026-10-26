@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backness, compile, separationCost } from './compile.ts'
+import { backness, compile, frontCost, separationCost } from './compile.ts'
 import { makeConfig, makeRoom, makeStudents } from './fixtures.ts'
 import { buildSeats, type Seat } from './room.ts'
 
@@ -30,6 +30,12 @@ describe('separation cost', () => {
         }
       }
     }
+  })
+})
+
+describe('frontCost', () => {
+  it('counts the first two rows as the front, then rises fast', () => {
+    expect([0, 1, 2, 3, 4].map(frontCost)).toEqual([0, 0, 30, 120, 270])
   })
 })
 
