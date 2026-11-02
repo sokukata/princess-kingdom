@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { backness, compile, frontCost, separationCost } from './compile.ts'
+import { backCost, backness, compile, frontCost, separationCost, togetherCost } from './compile.ts'
 import { makeConfig, makeRoom, makeStudents } from './fixtures.ts'
 import { buildSeats, type Seat } from './room.ts'
 
 describe('separation cost', () => {
-  const seats = buildSeats(makeRoom(5, 3))
+  const room = makeRoom(5, 3)
+  const seats = buildSeats(room)
   const at = (row: number, table: number, side: 0 | 1) =>
     seats.find((s) => s.row === row && s.table === table && s.side === side)!
-  const cost = (a: Seat, b: Seat) => separationCost(a, b, 3)
+  const cost = (a: Seat, b: Seat) => separationCost(a, b, room)
   const x = (s: Seat) => 2 * s.table + s.side
 
   it('follows how easily two students chat', () => {
@@ -31,11 +32,36 @@ describe('separation cost', () => {
       }
     }
   })
+  it('measures single desks across the room too', () => {
+    const singles = { ...makeRoom(3, 4), seatsPerTable: 1 as const }
+    const [first, , , last] = buildSeats(singles)
+    expect(buildSeats(singles).map((s) => s.key).slice(0, 4)).toEqual(['0-0-0', '0-1-0', '0-2-0', '0-3-0'])
+    expect(separationCost(first, last, singles)).toBe(50) // same row, both ends
+    expect(separationCost(first, buildSeats(singles)[1], singles)).toBeCloseTo(70 - 20 / 3, 9) // neighbouring desks
+    expect(separationCost(first, buildSeats(singles)[4], singles)).toBe(70) // just behind
+  })
 })
 
-describe('frontCost', () => {
+describe('togetherCost', () => {
+  it('wants the same table, or neighbouring single desks', () => {
+    const pairs = makeRoom(2, 3)
+    const singles = { ...pairs, seatsPerTable: 1 as const }
+    const seat = (row: number, table: number) => ({ key: '', row, table, side: 0 as const })
+    expect(togetherCost(seat(0, 1), seat(0, 1), pairs)).toBe(0)
+    expect(togetherCost(seat(0, 1), seat(0, 2), pairs)).toBe(50)
+    expect(togetherCost(seat(0, 1), seat(0, 2), singles)).toBe(0)
+    expect(togetherCost(seat(0, 0), seat(0, 2), singles)).toBe(50)
+    expect(togetherCost(seat(0, 1), seat(1, 1), singles)).toBe(50)
+  })
+})
+
+describe('frontCost and backCost', () => {
   it('counts the first two rows as the front, then rises fast', () => {
     expect([0, 1, 2, 3, 4].map(frontCost)).toEqual([0, 0, 30, 120, 270])
+  })
+
+  it('counts the last two rows as the back, then rises fast', () => {
+    expect([0, 1, 2, 3, 4].map((row) => backCost(row, 5))).toEqual([270, 120, 30, 0, 0])
   })
 })
 
@@ -53,6 +79,26 @@ describe('compile', () => {
       'Pas assez de places : 7 élèves pour 6 places.',
     )
     expect(compile(makeStudents(6), makeConfig({ room: makeRoom(1, 3) })).blocking).toBeUndefined()
+    expect(compile(makeStudents(6), makeConfig({ room: makeRoom(1, 3), emptyPins: ['0-0-0'] })).blocking).toBe(
+      'Pas assez de places : 6 élèves pour 5 places (1 gardées vides).',
+    )
+  })
+
+  it('warns about a student both in front and at the back, and keeps the front', () => {
+    const { problem, warnings } = compile(makeStudents(2), makeConfig({ front: ['s0'], back: ['s0', 's1'] }))
+    expect(warnings).toEqual(['Élève 0 est à la fois à placer devant et au fond : seul « devant » est appliqué.'])
+    expect(problem.front).toEqual([true, false])
+    expect(problem.back).toEqual([false, true])
+  })
+
+  it('ignores a student pin on a seat kept empty', () => {
+    const { problem, warnings } = compile(
+      makeStudents(2),
+      makeConfig({ pins: { s0: '0-0-0' }, emptyPins: ['0-0-0', '9-9-9'] }),
+    )
+    expect([...problem.pinned]).toEqual([-1, -1])
+    expect([...problem.keptEmpty]).toEqual([problem.seatIndex.get('0-0-0')])
+    expect(warnings).toEqual(["Le cadenas de Élève 0 est ignoré : sa place n'est plus disponible."])
   })
 
   it('warns about duplicate names, contradictory rules and unusable pins', () => {

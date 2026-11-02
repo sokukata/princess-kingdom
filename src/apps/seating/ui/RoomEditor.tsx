@@ -1,8 +1,8 @@
 import type { Room, SeatKey } from '../core/model.ts'
-import { range, seatKey } from '../core/room.ts'
+import { range, seatKey, tableSides } from '../core/room.ts'
 
 const MAX_ROWS = 10
-const MAX_TABLES_PER_ROW = 6
+const MAX_TABLES_PER_ROW = 12
 
 export function RoomEditor({ room, onChange }: { room: Room; onChange: (room: Room) => void }) {
   const disabled = new Set(room.disabledSeats)
@@ -26,11 +26,21 @@ export function RoomEditor({ room, onChange }: { room: Room; onChange: (room: Ro
           </select>
         </label>
         <label>
-          Tables de 2 par rang
+          Tables par rang
           <select value={room.tablesPerRow} onChange={(e) => onChange({ ...room, tablesPerRow: Number(e.target.value) })}>
             {range(MAX_TABLES_PER_ROW).map((i) => (
               <option key={i}>{i + 1}</option>
             ))}
+          </select>
+        </label>
+        <label>
+          Places par table
+          <select
+            value={room.seatsPerTable ?? 2}
+            onChange={(e) => onChange({ ...room, seatsPerTable: Number(e.target.value) as 1 | 2 })}
+          >
+            <option value={2}>2</option>
+            <option value={1}>1</option>
           </select>
         </label>
       </div>
@@ -40,13 +50,14 @@ export function RoomEditor({ room, onChange }: { room: Room; onChange: (room: Ro
           <div key={row} className="mini-row">
             {range(room.tablesPerRow).map((table) => (
               <div key={table} className="mini-table">
-                {([0, 1] as const).map((side) => {
+                {tableSides(room).map((side) => {
                   const key = seatKey(row, table, side)
+                  const label = room.seatsPerTable === 1 ? '' : `, place de ${side === 0 ? 'gauche' : 'droite'}`
                   return (
                     <button
                       key={side}
                       className={disabled.has(key) ? 'mini-seat off' : 'mini-seat'}
-                      aria-label={`Rang ${row + 1}, table ${table + 1}, place de ${side === 0 ? 'gauche' : 'droite'}`}
+                      aria-label={`Rang ${row + 1}, table ${table + 1}${label}`}
                       aria-pressed={!disabled.has(key)}
                       onClick={() => toggle(key)}
                     />

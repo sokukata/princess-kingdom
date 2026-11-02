@@ -18,13 +18,15 @@ export function parseSeatKey(key: SeatKey): { row: number; table: number } {
   return { row, table }
 }
 
+export const tableSides = (room: Room): (0 | 1)[] => (room.seatsPerTable === 1 ? [0] : [0, 1])
+
 // Enabled seats, ordered by row, table and side.
 export function buildSeats(room: Room): Seat[] {
   const disabled = new Set(room.disabledSeats)
   const seats: Seat[] = []
   for (let row = 0; row < room.rows; row++) {
     for (let table = 0; table < room.tablesPerRow; table++) {
-      for (const side of [0, 1] as const) {
+      for (const side of tableSides(room)) {
         const key = seatKey(row, table, side)
         if (!disabled.has(key)) seats.push({ key, row, table, side })
       }

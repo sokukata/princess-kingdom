@@ -17,9 +17,10 @@ const EPSILON = 1e-9
 // Simulated annealing from several random starts, each one finished by a descent; returns the best plan.
 export function solve(p: Problem, { seed, restarts = 4, iterations = 200_000 }: SolveOptions): Assignment {
   const random = mulberry32(seed)
-  const pinnedSeats = new Set(p.pinned.filter((seat) => seat >= 0))
-  const movable = range(p.seats.length).filter((seat) => !pinnedSeats.has(seat))
-  const freeTables = p.tableSeats.filter((seats) => seats.length === 2 && !seats.some((seat) => pinnedSeats.has(seat)))
+  // Seats that never move: pinned students, and seats kept empty.
+  const fixedSeats = new Set([...p.pinned.filter((seat) => seat >= 0), ...p.keptEmpty])
+  const movable = range(p.seats.length).filter((seat) => !fixedSeats.has(seat))
+  const freeTables = p.tableSeats.filter((seats) => seats.length === 2 && !seats.some((seat) => fixedSeats.has(seat)))
   let best = emptyAssignment(p)
   let bestCost = Infinity
   for (let r = 0; r < restarts; r++) {
@@ -41,7 +42,7 @@ function randomStart(p: Problem, random: () => number): Assignment {
     if (seat >= 0) place(a, x, seat)
   })
   const free = shuffle(
-    range(p.seats.length).filter((seat) => a.occupant[seat] < 0),
+    range(p.seats.length).filter((seat) => a.occupant[seat] < 0 && !p.keptEmpty.has(seat)),
     random,
   )
   p.pinned.forEach((seat, x) => {

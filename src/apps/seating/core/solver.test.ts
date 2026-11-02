@@ -3,7 +3,7 @@ import type { Student } from '../../../shared/classes/model.ts'
 import { backness, compile, type Problem } from './compile.ts'
 import { makeConfig, makeRoom, makeStudents, randomSeating, realisticClass } from './fixtures.ts'
 import type { SeatingConfig } from './model.ts'
-import { parseSeatKey, range } from './room.ts'
+import { buildSeats, parseSeatKey, range } from './room.ts'
 import { cost, emptyAssignment, explain, moveDelta, place, toSeating } from './score.ts'
 import { solve } from './solver.ts'
 
@@ -20,7 +20,7 @@ function bruteForceOptimum(p: Problem): number {
     }
     if (p.pinned[x] >= 0) return visit(x + 1)
     for (let seat = 0; seat < p.seats.length; seat++) {
-      if (a.occupant[seat] >= 0) continue
+      if (a.occupant[seat] >= 0 || p.keptEmpty.has(seat)) continue
       place(a, x, seat)
       visit(x + 1)
       a.occupant[seat] = -1
@@ -60,11 +60,14 @@ describe('solve', () => {
     ['2 rows × 2 tables, 7 students', makeRoom(2, 2), 7],
     ['4 rows × 1 table, 6 students', makeRoom(4, 1), 6],
     ['2 rows × 2 tables with a single desk, 7 students', { ...makeRoom(2, 2), disabledSeats: ['0-1-1'] }, 7],
+    ['4 rows × 2 single desks, 7 students', { ...makeRoom(4, 2), seatsPerTable: 1 as const }, 7],
   ])('finds the brute-force optimum on %s', (_, room, count) => {
     const students = makeStudents(count)
+    const spareSeat = buildSeats(room).length > count
     const config = makeConfig({
       room,
       front: ['s2', 's5'],
+      back: ['s3'],
       rules: [
         { kind: 'separate', ids: ['s0', 's1'] },
         { kind: 'separate', ids: ['s2', 's3', 's4'] },
@@ -74,6 +77,7 @@ describe('solve', () => {
       avoidPreviousNeighbours: true,
       rotateFrontBack: true,
       pins: { s1: '1-0-1' },
+      emptyPins: spareSeat ? ['0-0-0'] : [],
       history: [{ date: '2026-09-01', seating: randomSeating(students, room, 5) }],
     })
     const { problem } = compile(students, config)
@@ -131,6 +135,32 @@ describe('solve', () => {
     const front = ['s3', 's8', 's11', 's19']
     const { problem, a } = solved(makeStudents(20), makeConfig({ front }))
     for (const id of front) expect(problem.seats[a.seatOf[problem.studentIndex.get(id)!]].row).toBeLessThanOrEqual(1)
+  })
+
+  it('puts the back students in the last two rows, even with the rotation', () => {
+    const students = makeStudents(28)
+    const room = makeRoom(5, 3)
+    const back = ['s2', 's9', 's14', 's21']
+    const history = [{ date: '2026-09-01', seating: randomSeating(students, room, 6) }]
+    const { problem, a } = solved(students, makeConfig({ room, back, rotateFrontBack: true, history }))
+    for (const id of back) expect(problem.seats[a.seatOf[problem.studentIndex.get(id)!]].row).toBeGreaterThanOrEqual(3)
+  })
+
+  it('leaves the seats kept empty free, even when it fills the front', () => {
+    const emptyPins = ['0-0-0', '0-1-1']
+    const { problem, a } = solved(makeStudents(20), makeConfig({ emptyPins }))
+    for (const key of emptyPins) expect(a.occupant[problem.seatIndex.get(key)!]).toBe(-1)
+    expect([...a.seatOf].every((seat) => seat >= 0)).toBe(true)
+  })
+
+  it('seats a binôme at neighbouring single desks of the same row', () => {
+    const room = { ...makeRoom(5, 4), seatsPerTable: 1 as const }
+    const rules = [{ kind: 'together' as const, ids: ['s0', 's1'] as [string, string] }]
+    const { problem, a, issues } = solved(makeStudents(16), makeConfig({ room, rules }))
+    const [first, second] = [problem.seats[a.seatOf[0]], problem.seats[a.seatOf[1]]]
+    expect(issues).toEqual([])
+    expect(first.row).toBe(second.row)
+    expect(Math.abs(first.table - second.table)).toBe(1)
   })
 
   it('changes every tablemate of the last validated plan', () => {

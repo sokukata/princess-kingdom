@@ -6,6 +6,7 @@ export type TableKey = string // "row-table"
 export interface Room {
   rows: number
   tablesPerRow: number
+  seatsPerTable?: 1 | 2 // 2 when missing; a single desk has only its side 0
   disabledSeats: SeatKey[] // a table with one seat left is a single desk; with none, there is no table
 }
 
@@ -18,24 +19,28 @@ export type Seating = Record<SeatKey, StudentId>
 export interface SeatingConfig {
   room: Room
   front: StudentId[]
+  back?: StudentId[]
   rules: Rule[]
   mixGender: boolean
   avoidPreviousNeighbours: boolean
   rotateFrontBack: boolean
   pins: Record<StudentId, SeatKey>
+  emptyPins?: SeatKey[] // seats kept empty when generating
   current?: Seating
   history: { date: string; seating: Seating }[] // validated plans, most recent last
 }
 
 export function defaultConfig(): SeatingConfig {
   return {
-    room: { rows: 5, tablesPerRow: 3, disabledSeats: [] },
+    room: { rows: 5, tablesPerRow: 3, seatsPerTable: 2, disabledSeats: [] },
     front: [],
+    back: [],
     rules: [],
     mixGender: false,
     avoidPreviousNeighbours: true,
     rotateFrontBack: true,
     pins: {},
+    emptyPins: [],
     history: [],
   }
 }

@@ -1,5 +1,5 @@
 import type { StudentId } from '../../../shared/classes/model.ts'
-import { frontCost, mixCost, rotationCost, type Problem } from './compile.ts'
+import { backCost, frontCost, mixCost, rotationCost, type Problem } from './compile.ts'
 import type { Seating } from './model.ts'
 import type { Seat } from './room.ts'
 
@@ -112,7 +112,7 @@ export function cost(p: Problem, a: Assignment): number {
 }
 
 export interface Issue {
-  kind: 'front' | 'rotation' | 'separate' | 'together' | 'mix' | 'previous'
+  kind: 'front' | 'back' | 'rotation' | 'separate' | 'together' | 'mix' | 'previous'
   message: string
   points: number
   students: StudentId[]
@@ -131,6 +131,7 @@ export function explain(p: Problem, a: Assignment): Issue[] {
     if (seat < 0) continue
     const { row } = p.seats[seat]
     if (p.front[x]) add('front', frontCost(row), `${name(x)} (devant) est au rang ${row + 1}`, x)
+    if (p.back[x]) add('back', backCost(row, p.rows), `${name(x)} (au fond) est au rang ${row + 1}`, x)
     add(
       'rotation',
       rotationCost(p.previousBackness[x], row, p.rows),
@@ -143,7 +144,7 @@ export function explain(p: Problem, a: Assignment): Issue[] {
       const points = p.kernels[kind][seat * S + otherSeat]
       const pair = `${name(x)} et ${name(other)}`
       if (kind === 'separate') add(kind, points, `${pair} (à séparer) ${gap(p.seats[seat], p.seats[otherSeat])}`, x, other)
-      else add(kind, points, `${pair} (binôme) ne sont pas à la même table`, x, other)
+      else add(kind, points, `${pair} (binôme) ne sont pas côte à côte`, x, other)
     }
   }
   for (let table = 0; table < p.tableSeats.length; table++) {

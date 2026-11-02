@@ -7,9 +7,9 @@ import type { SeatKey } from './core/model.ts'
 import { explain, fromSeating, toSeating } from './core/score.ts'
 import { solve } from './core/solver.ts'
 import { useSeatingConfig } from './state.ts'
-import { FrontPicker } from './ui/FrontPicker.tsx'
 import { HistoryPanel } from './ui/HistoryPanel.tsx'
 import { IssuesPanel } from './ui/IssuesPanel.tsx'
+import { PlacePicker } from './ui/PlacePicker.tsx'
 import { RoomEditor } from './ui/RoomEditor.tsx'
 import { RulesEditor } from './ui/RulesEditor.tsx'
 import { SeatingPlan } from './ui/SeatingPlan.tsx'
@@ -57,18 +57,30 @@ function SeatingEditor({ roster }: { roster: ClassRoster }) {
       return { current: seating }
     })
 
-  // A seat holds at most one lock.
+  // A seat holds at most one lock, for a student or for staying empty.
   const togglePin = (id: StudentId, seat: SeatKey) =>
     update((c) => {
       const pins = Object.fromEntries(Object.entries(c.pins).filter(([student, key]) => student !== id && key !== seat))
-      return { pins: c.pins[id] === seat ? pins : { ...pins, [id]: seat } }
+      const emptyPins = (c.emptyPins ?? []).filter((key) => key !== seat)
+      return { pins: c.pins[id] === seat ? pins : { ...pins, [id]: seat }, emptyPins }
+    })
+
+  const toggleEmptyPin = (seat: SeatKey) =>
+    update((c) => {
+      const emptyPins = c.emptyPins ?? []
+      return { emptyPins: emptyPins.includes(seat) ? emptyPins.filter((key) => key !== seat) : [...emptyPins, seat] }
     })
 
   return (
     <div className="seating-layout">
       <aside className="no-print">
         <RoomEditor room={config.room} onChange={(room) => update({ room })} />
-        <FrontPicker students={roster.students} front={config.front} onChange={(front) => update({ front })} />
+        <PlacePicker
+          students={roster.students}
+          front={config.front}
+          back={config.back ?? []}
+          onChange={(change) => update(change)}
+        />
         <RulesEditor students={roster.students} config={config} update={update} />
       </aside>
 
@@ -112,10 +124,13 @@ function SeatingEditor({ roster }: { roster: ClassRoster }) {
               seating={config.current}
               students={roster.students}
               pins={config.pins}
+              emptyPins={config.emptyPins ?? []}
               front={config.front}
+              back={config.back ?? []}
               teacherView={teacherView}
               onSwap={swapSeats}
               onTogglePin={togglePin}
+              onToggleEmptyPin={toggleEmptyPin}
             />
             {unplaced.length > 0 && (
               <p className="message warning no-print">

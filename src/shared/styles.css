@@ -541,6 +541,16 @@ td.genders .chip {
   content: '👑 ';
 }
 
+.chip.backstage[aria-pressed='true'] {
+  color: #fff;
+  background: var(--plum);
+  border-color: var(--plum);
+}
+
+.chip.backstage[aria-pressed='true']::before {
+  content: '🌹 ';
+}
+
 .rule-buttons {
   display: flex;
   gap: 8px;
@@ -639,6 +649,10 @@ td.genders .chip {
   width: calc(2 * var(--seat-width) + 8px);
 }
 
+.desk-slot.solo {
+  width: calc(var(--seat-width) + 6px);
+}
+
 .desk-slot.end {
   justify-content: flex-end;
 }
@@ -683,7 +697,11 @@ td.genders .chip {
   outline: 2px solid var(--gold);
 }
 
-.seat .crown {
+.seat.empty.pinned {
+  background: repeating-linear-gradient(-45deg, var(--gold-soft) 0 6px, #fff 6px 12px);
+}
+
+.seat .badge {
   position: absolute;
   top: 1px;
   left: 3px;
@@ -831,6 +849,10 @@ td.genders .chip {
 
   .desk.single {
     flex: 0 0 50%;
+  }
+
+  .desk-slot.solo .desk.single {
+    flex: 1;
   }
 
   .seat {
