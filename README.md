@@ -1,6 +1,6 @@
 # Princess Kingdom 👑
 
-Boîte à outils web pour un prof de lycée, habillée d'or et de roses (clins d'œil à Miquella, Zelda et Drag Race). Tout tourne dans le navigateur : les données (noms d'élèves mineurs) restent dans le `localStorage` de l'ordinateur du prof, avec un export/import en fichier JSON pour les sauvegardes et les changements d'ordinateur.
+Boîte à outils web pour un prof de lycée. Tout tourne dans le navigateur : les données (noms d'élèves mineurs) restent dans le `localStorage` de l'ordinateur du prof, avec un export/import en fichier JSON pour les sauvegardes et les changements d'ordinateur.
 
 Outils :
 
