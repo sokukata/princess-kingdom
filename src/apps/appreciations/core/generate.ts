@@ -1,5 +1,6 @@
 import { mulberry32, shuffle } from '../../../shared/random.ts'
 import { bandOf, bank, combinations, conclusions, openings, type Band } from './bank/index.ts'
+import { criteria } from './criteria.ts'
 import type { CriterionId, Gender, Level, Levels, PeriodId } from './model.ts'
 import { render, usable } from './text.ts'
 
@@ -60,8 +61,11 @@ function rank(id: CriterionId, level: Level, band: Band): number {
 interface Candidate {
   variants: string[]
   rank: number
+  order: number // place in the text: combinations first, then the criteria in the order of the list
   conclusions?: string[]
 }
+
+const criterionOrder = new Map(criteria.map((c, i) => [c.id, i]))
 
 const stems = (sentence: string) => sentence.toLowerCase().match(/\p{L}{6,}/gu)?.map((w) => w.slice(0, 6)) ?? []
 const head = (sentence: string) => sentence.split(' ').slice(0, 2).join(' ').toLowerCase()
@@ -71,11 +75,14 @@ export function generate(levels: Levels, { gender, period, seed, maxLength }: Ge
   if (rated.length === 0) return ''
   const random = mulberry32(seed)
   const band = bandOf(overall(levels) ?? 2.5)
+  const sentences: string[] = []
+  const body: { text: string; order: number }[] = []
 
   // Variants rendered for this student, the ones repeating no word or sentence start of the text first.
   const options = (variants: string[]) => {
-    const usedStems = new Set(sentences.flatMap(stems))
-    const usedHeads = new Set(sentences.map(head))
+    const written = [...sentences, ...body.map((b) => b.text)]
+    const usedStems = new Set(written.flatMap(stems))
+    const usedHeads = new Set(written.map(head))
     const score = (text: string) =>
       stems(text).filter((s) => usedStems.has(s)).length + (usedHeads.has(head(text)) ? 2 : 0)
     return shuffle(
@@ -83,14 +90,9 @@ export function generate(levels: Levels, { gender, period, seed, maxLength }: Ge
       random,
     ).sort((a, b) => score(a) - score(b))
   }
-  const sentences: string[] = []
   sentences.push(options(openings[band])[0])
-  const place = (variants: string[]) => {
-    const length = sentences.join(' ').length
-    const text = options(variants).find((t) => length + 1 + t.length <= maxLength)
-    if (text) sentences.push(text)
-    return text
-  }
+  const length = () => [...sentences, ...body.map((b) => b.text)].join(' ').length
+  const fits = (variants: string[], room: number) => options(variants).find((t) => length() + 1 + t.length <= room)
 
   // Combinations come first, in the order of the list; their own conclusion then closes the text.
   const covered = new Set<CriterionId>()
@@ -99,7 +101,7 @@ export function generate(levels: Levels, { gender, period, seed, maxLength }: Ge
     if (!combination.matches(levels) || combination.covers.some((id) => covered.has(id))) continue
     combination.covers.forEach((id) => covered.add(id))
     const { variants, conclusions } = combination
-    candidates.push({ variants, conclusions, rank: i - combinations.length })
+    candidates.push({ variants, conclusions, rank: i - combinations.length, order: i - combinations.length })
   }
 
   const weak = rated.filter(([id, level]) => isWeak(id, level))
@@ -108,14 +110,28 @@ export function generate(levels: Levels, { gender, period, seed, maxLength }: Ge
 
   for (const [id, level] of rated) {
     if (covered.has(id) || id === advised) continue
-    candidates.push({ variants: bank[id].levels[level], rank: rank(id, level, band) })
+    // "Stable" adds nothing to the other criteria: it is only said when nothing else is rated.
+    if (id === 'evolution' && level === 2 && rated.length > 1) continue
+    candidates.push({ variants: bank[id].levels[level], rank: rank(id, level, band), order: criterionOrder.get(id)! })
   }
 
-  // Three sentences at most: the most telling one in the body, and a conclusion dropped when it does not fit.
-  const body = shuffle(candidates, random)
-    .sort((a, b) => a.rank - b.rank)
-    .find((candidate) => place(candidate.variants))
-  place(body?.conclusions ?? (advised ? bank[advised].advice! : conclusions[band]))
+  // The maximum length is what the teacher wants to fill: the most telling sentences are picked first, as many as fit
+  // while keeping room for the conclusion, then read in the order of a report (results, work, attitude). The
+  // conclusion closes the text when it fits. Each criterion is said once.
+  const ordered = shuffle(candidates, random).sort((a, b) => a.rank - b.rank)
+  const closing = (first?: Candidate) => first?.conclusions ?? (advised ? bank[advised].advice! : conclusions[band])
+  const shortest = (variants: string[]) => Math.min(...options(variants).map((t) => t.length))
+  let first: Candidate | undefined
+  for (const candidate of ordered) {
+    const reserve = first ? shortest(closing(first)) + 1 : 0
+    const text = fits(candidate.variants, maxLength - reserve) ?? (first ? undefined : fits(candidate.variants, maxLength))
+    if (!text) continue
+    body.push({ text, order: candidate.order })
+    first ??= candidate
+  }
+  const conclusion = fits(closing(first), maxLength)
+  sentences.push(...body.sort((a, b) => a.order - b.order).map((b) => b.text))
+  if (conclusion) sentences.push(conclusion)
   return sentences.join(' ')
 }
 

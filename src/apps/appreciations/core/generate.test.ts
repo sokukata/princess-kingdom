@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { combinations } from './bank/index.ts'
+import { bank, combinations } from './bank/index.ts'
 import { criteria } from './criteria.ts'
 import { generate, nextReroll, overall, seedOf, textOf, type GenerateOptions, type StudentText } from './generate.ts'
 import type { Gender, Level, Levels } from './model.ts'
-import { forbidden } from './text.ts'
+import { forbidden, render } from './text.ts'
 
 const options = (seed: number, gender: Gender | 'none' = 'F', maxLength = 200): GenerateOptions => ({
   gender: gender === 'none' ? undefined : gender,
@@ -46,20 +46,47 @@ describe('generate', () => {
     expect(differing.length).toBeGreaterThan(90)
   })
 
-  it('writes two or three clean sentences, within the maximum length', () => {
-    for (const [n, levels] of profiles(400).entries()) {
+  it('writes clean sentences, within the maximum length, each one once', () => {
+    for (const [n, levels] of profiles(300).entries()) {
       for (const gender of ['F', 'M', 'none'] as const) {
-        for (const maxLength of [120, 200, 300]) {
+        for (const maxLength of [120, 200, 300, 1000]) {
           const text = generate(levels, options(n, gender, maxLength))
           if (Object.keys(levels).length === 0) continue
           expect(text.length, text).toBeLessThanOrEqual(maxLength)
           expect(sentences(text).length, text).toBeGreaterThanOrEqual(2)
-          expect(sentences(text).length, text).toBeLessThanOrEqual(3)
+          expect(new Set(sentences(text)).size, text).toBe(sentences(text).length)
           expect(text, text).not.toMatch(/[{}|!]/)
           for (const word of forbidden) expect(text).not.toMatch(word)
           if (gender === 'none') expect(text, text).not.toMatch(personal)
         }
       }
+    }
+  })
+
+  it('fills the maximum length the teacher chose, as far as the rated criteria allow', () => {
+    const many = profiles(300).filter((levels) => Object.keys(levels).length >= 12)
+    const mean = (maxLength: number) =>
+      many.reduce((sum, levels, n) => sum + generate(levels, options(n, 'F', maxLength)).length, 0) / many.length
+    const [short, usual, long] = [mean(120), mean(200), mean(1000)]
+    expect(short).toBeGreaterThan(0.75 * 120)
+    expect(usual).toBeGreaterThan(0.85 * 200)
+    expect(long).toBeGreaterThan(3 * usual)
+    // With a few rated criteria only, a long limit says each of them, and no more.
+    const few: Levels = { results: 3, homework: 2, participation: 4 }
+    const text = generate(few, options(1, 'F', 1000))
+    expect(sentences(text).length, text).toBe(4)
+  })
+
+  it('reads in the order of a report: results, then work, then attitude', () => {
+    const levels: Levels = { participation: 4, homework: 3, knowledge: 3, behaviour: 3, reasoning: 4 }
+    const order = ['knowledge', 'reasoning', 'homework', 'participation', 'behaviour'] as const
+    for (let seed = 0; seed < 10; seed++) {
+      const text = generate(levels, options(seed, 'M', 1000))
+      const positions = order.map((id) =>
+        Math.max(...Object.values(bank[id].levels[levels[id]!]).map((v) => text.indexOf(render(v, 'M', 'T1')))),
+      )
+      expect(positions.every((p) => p >= 0), text).toBe(true)
+      expect([...positions].sort((a, b) => a - b), text).toEqual(positions)
     }
   })
 

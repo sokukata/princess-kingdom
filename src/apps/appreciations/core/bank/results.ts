@@ -20,9 +20,9 @@ export const resultsBank: Partial<Record<CriterionId, CriterionBank>> = {
   },
   evolution: {
     levels: {
-      1: ['Les résultats sont en recul ce {p}.', 'Un net fléchissement est à noter.'],
-      2: ['Le niveau reste stable.', 'Les résultats sont stables par rapport au début de l’année.'],
-      3: ['Des progrès sont visibles ce {p}.', 'Les résultats progressent.'],
+      1: ['Un recul est à noter ce {p}.', 'Un net fléchissement est à noter.'],
+      2: ['Le niveau reste stable.', 'Le niveau est stable par rapport au début de l’année.'],
+      3: ['Des progrès sont visibles ce {p}.', 'Une progression se dessine.'],
       4: ['Les progrès sont nets ce {p}.', 'La progression est remarquable.'],
     },
     advice: [

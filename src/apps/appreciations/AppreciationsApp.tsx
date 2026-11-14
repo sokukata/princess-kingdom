@@ -12,10 +12,10 @@ import { StudentSheet } from './ui/StudentSheet.tsx'
 
 type View = 'sheet' | 'class' | 'settings'
 
-const views: { id: View; label: string }[] = [
-  { id: 'sheet', label: 'Fiche élève' },
-  { id: 'class', label: 'Vue classe' },
-  { id: 'settings', label: 'Réglages' },
+const views: { id: View; icon: string; label: string; hint: string }[] = [
+  { id: 'sheet', icon: '🪶', label: 'Fiche élève', hint: 'Noter un élève et rédiger son appréciation' },
+  { id: 'class', icon: '📜', label: 'Vue classe', hint: 'Toutes les appréciations, à copier ou exporter' },
+  { id: 'settings', icon: '⚙️', label: 'Réglages', hint: 'Longueur des textes et critères utilisés' },
 ]
 
 export default function AppreciationsApp() {
@@ -66,16 +66,28 @@ function AppreciationsEditor({ roster }: { roster: ClassRoster }) {
           </select>
         </label>
         {store.copyPrevious && (
-          <button onClick={copyPrevious}>Reprendre les niveaux de la période précédente</button>
+          <button onClick={copyPrevious}>
+            <span aria-hidden="true">⏪ </span>Reprendre les niveaux de la période précédente
+          </button>
         )}
-        <span className="chips views" role="tablist">
-          {views.map((v) => (
-            <button key={v.id} className="chip" role="tab" aria-pressed={view === v.id} onClick={() => setView(v.id)}>
-              {v.label}
-            </button>
-          ))}
-        </span>
       </div>
+      <nav className="view-tabs" role="tablist" aria-label="Vues">
+        {views.map((v) => (
+          <button
+            key={v.id}
+            className="view-tab"
+            role="tab"
+            aria-selected={view === v.id}
+            title={v.hint}
+            onClick={() => setView(v.id)}
+          >
+            <span className="view-tab-icon" aria-hidden="true">
+              {v.icon}
+            </span>
+            {v.label}
+          </button>
+        ))}
+      </nav>
       {view === 'sheet' && (
         <StudentSheet
           students={roster.students}
