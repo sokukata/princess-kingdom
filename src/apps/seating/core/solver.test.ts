@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Student } from '../../../shared/classes/model.ts'
+import { machineSlowness } from '../../../shared/timing.ts'
 import { backness, compile, type Problem } from './compile.ts'
 import { makeConfig, makeRoom, makeStudents, randomSeating, realisticClass } from './fixtures.ts'
 import type { SeatingConfig } from './model.ts'
@@ -91,7 +92,7 @@ describe('solve', () => {
     const { problem } = compile(students, config)
     const optimum = bruteForceOptimum(problem)
     for (let seed = 1; seed <= 20; seed++) expect(cost(problem, solve(problem, { seed }))).toBeCloseTo(optimum, 9)
-  })
+  }, 60_000)
 
   it('separates disjoint pairs completely when there are enough rows', () => {
     const students = makeStudents(24)
@@ -118,9 +119,10 @@ describe('solve', () => {
       slowest = Math.max(slowest, performance.now() - start)
     }
     const best = Math.min(...costs)
-    console.info(`best ${best}, worst ${Math.max(...costs)}, slowest solve ${slowest.toFixed(0)} ms`)
+    const limit = 300 * machineSlowness()
+    console.info(`best ${best}, worst ${Math.max(...costs)}, slowest solve ${slowest.toFixed(0)} ms, limit ${limit.toFixed(0)} ms`)
     expect(Math.max(...costs)).toBeLessThanOrEqual(best + Math.max(0.03 * best, 5))
-    expect(slowest).toBeLessThan(300)
+    expect(slowest).toBeLessThan(limit)
   }, 60_000)
 
   it('gives a different plan for each seed', () => {

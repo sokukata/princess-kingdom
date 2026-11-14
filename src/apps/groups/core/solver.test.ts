@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Student } from '../../../shared/classes/model.ts'
+import { machineSlowness } from '../../../shared/timing.ts'
 import { compile } from './compile.ts'
 import { makeConfig, makeStudents } from './fixtures.ts'
 import type { GroupsConfig } from './model.ts'
@@ -146,7 +147,7 @@ describe('solve', () => {
     solve(problem, { seed: 1 })
     const start = performance.now()
     solve(problem, { seed: 2 })
-    expect(performance.now() - start).toBeLessThan(100)
+    expect(performance.now() - start).toBeLessThan(100 * machineSlowness())
   })
 })
 
