@@ -9,10 +9,10 @@ import { solve } from './core/solver.ts'
 import { useSeatingConfig } from './state.ts'
 import { HistoryPanel } from './ui/HistoryPanel.tsx'
 import { IssuesPanel } from './ui/IssuesPanel.tsx'
-import { PlacePicker } from './ui/PlacePicker.tsx'
 import { RoomEditor } from './ui/RoomEditor.tsx'
 import { RulesEditor } from './ui/RulesEditor.tsx'
 import { SeatingPlan } from './ui/SeatingPlan.tsx'
+import { StudentsPanel } from './ui/StudentsPanel.tsx'
 
 export default function SeatingApp() {
   const { current } = useClasses()
@@ -75,12 +75,7 @@ function SeatingEditor({ roster }: { roster: ClassRoster }) {
     <div className="seating-layout">
       <aside className="no-print">
         <RoomEditor room={config.room} onChange={(room) => update({ room })} />
-        <PlacePicker
-          students={roster.students}
-          front={config.front}
-          back={config.back ?? []}
-          onChange={(change) => update(change)}
-        />
+        <StudentsPanel students={roster.students} config={config} update={update} />
         <RulesEditor students={roster.students} config={config} update={update} />
       </aside>
 
@@ -127,6 +122,7 @@ function SeatingEditor({ roster }: { roster: ClassRoster }) {
               emptyPins={config.emptyPins ?? []}
               front={config.front}
               back={config.back ?? []}
+              aesh={config.aesh ?? {}}
               teacherView={teacherView}
               onSwap={swapSeats}
               onTogglePin={togglePin}

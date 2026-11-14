@@ -537,18 +537,10 @@ td.genders .chip {
   border-color: var(--gold);
 }
 
-.chip.vip[aria-pressed='true']::before {
-  content: '👑 ';
-}
-
 .chip.backstage[aria-pressed='true'] {
   color: #fff;
   background: var(--plum);
   border-color: var(--plum);
-}
-
-.chip.backstage[aria-pressed='true']::before {
-  content: '🌹 ';
 }
 
 .rule-buttons {
@@ -557,6 +549,144 @@ td.genders .chip {
   margin: 10px 0;
 }
 
+.students-summary {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--plum);
+}
+
+.student-rows {
+  max-height: 60vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.student-rows > li {
+  border-bottom: 1px solid var(--bg);
+}
+
+.student-rows > li.open {
+  margin: 4px 0;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.student-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 4px 6px;
+}
+
+/* The name wraps instead of being cut; the badges go to the next line when there is no room. */
+.student-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 0;
+  font-weight: 500;
+  text-align: left;
+  overflow-wrap: anywhere;
+  background: none;
+  border: none;
+}
+
+.student-name:hover {
+  color: var(--accent);
+}
+
+.student-name[aria-expanded='true'] {
+  font-weight: 700;
+  color: var(--plum);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.badge-pill {
+  padding: 0 7px;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  border-radius: 999px;
+}
+
+.badge-pill.gold {
+  color: var(--gold-text);
+  background: var(--gold-soft);
+}
+
+.badge-pill.plum {
+  color: #fff;
+  background: var(--plum);
+}
+
+.badge-pill.muted {
+  color: var(--muted);
+  background: var(--panel);
+}
+
+.student-sheet {
+  display: grid;
+  gap: 6px;
+  padding: 2px 8px 8px 30px;
+}
+
+.sheet-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.sheet-label {
+  width: 4.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.sheet-control {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+}
+
+.sheet-control .chip {
+  padding: 1px 9px;
+  font-size: 0.85rem;
+}
+
+.aesh-name {
+  flex: 1 1 10rem;
+  font-size: 0.85rem;
+}
+
+.rule-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+}
+
+.rule-bar-count {
+  flex-basis: 100%;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 .rules {
   display: grid;
   gap: 4px;
@@ -636,6 +766,7 @@ td.genders .chip {
 }
 
 .desk {
+  position: relative;
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -722,6 +853,41 @@ td.genders .chip {
 .seat:hover .lock,
 .seat .lock[aria-pressed='true'] {
   opacity: 1;
+}
+
+/* Aisles wide enough for two AESH, when the rule cannot be kept, and room for one beyond the last table. */
+.plan.with-aesh {
+  --aesh-size: 28px;
+}
+
+.plan.with-aesh .plan-row {
+  gap: calc(2 * var(--aesh-size) + 6px);
+  padding-right: var(--aesh-size);
+}
+
+.aesh-square {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: var(--aesh-size);
+  height: var(--aesh-size);
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: var(--plum);
+  cursor: help;
+  background: var(--accent-soft);
+  border: 2px solid var(--plum);
+  border-radius: 5px;
+  transform: translateY(-50%);
+}
+
+.aesh-square.left {
+  right: 100%;
+}
+
+.aesh-square.right {
+  left: 100%;
 }
 
 .issues ul {
@@ -833,6 +999,12 @@ td.genders .chip {
 
   .plan-row {
     gap: 3%;
+  }
+
+  .aesh-square {
+    color: #000;
+    background: #fff;
+    border-color: #000;
   }
 
   .desk-slot {

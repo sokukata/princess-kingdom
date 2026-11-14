@@ -1,6 +1,6 @@
 import type { Student, StudentId } from '../../../shared/classes/model.ts'
 import type { Room, Seating, SeatKey } from '../core/model.ts'
-import { range, seatKey, tableSides } from '../core/room.ts'
+import { aeshAisle, range, seatKey, tableSides } from '../core/room.ts'
 
 // A custom type, so that text dragged from elsewhere is not taken for a seat.
 const SEAT_TYPE = 'application/x-princess-kingdom-seat'
@@ -13,6 +13,7 @@ interface Props {
   emptyPins: SeatKey[]
   front: StudentId[]
   back: StudentId[]
+  aesh: Record<StudentId, string>
   teacherView: boolean
   onSwap: (from: SeatKey, to: SeatKey) => void
   onTogglePin: (id: StudentId, seat: SeatKey) => void
@@ -21,8 +22,8 @@ interface Props {
 
 // Students' view: board at the top. Teacher's view, from the desk: board at the bottom, left and right swapped.
 export function SeatingPlan(props: Props) {
-  const { room, seating, students, pins, emptyPins, front, back, teacherView, onSwap, onTogglePin, onToggleEmptyPin } =
-    props
+  const { room, seating, students, pins, emptyPins, front, back, aesh, teacherView } = props
+  const { onSwap, onTogglePin, onToggleEmptyPin } = props
   const names = new Map(students.map((s) => [s.id, s.name]))
   const disabled = new Set(room.disabledSeats)
   const keptEmpty = new Set(emptyPins)
@@ -31,6 +32,24 @@ export function SeatingPlan(props: Props) {
   const ordered = (count: number) => (teacherView ? range(count).reverse() : range(count))
   const sides = teacherView ? tableSides(room).reverse() : tableSides(room)
   const board = <div className="board">Tableau</div>
+  const hasAesh = (seat: SeatKey) => {
+    const id = seating[seat]
+    return id !== undefined && names.has(id) && aesh[id] !== undefined && !disabled.has(seat)
+  }
+
+  // In the aisle, against the outer edge of the desk: the side of the seat on a table of two.
+  const aeshSquare = (row: number, table: number, side: 0 | 1) => {
+    const seat = seatKey(row, table, side)
+    if (!hasAesh(seat)) return null
+    const id = seating[seat]
+    const onLeft = (aeshAisle({ table, side }, room) === table) !== teacherView
+    const title = aeshTitle(aesh[id], names.get(id)!)
+    return (
+      <span key={side} className={`aesh-square ${onLeft ? 'left' : 'right'}`} title={title}>
+        AESH
+      </span>
+    )
+  }
 
   const seatCell = (seat: SeatKey) => {
     const id = seating[seat]
@@ -74,7 +93,7 @@ export function SeatingPlan(props: Props) {
   }
 
   return (
-    <div className="plan">
+    <div className={Object.keys(seating).some(hasAesh) ? 'plan with-aesh' : 'plan'}>
       {!teacherView && board}
       {ordered(room.rows).map((row) => (
         <div key={row} className="plan-row">
@@ -91,7 +110,10 @@ export function SeatingPlan(props: Props) {
                 {kept.length === 0 ? (
                   <div className="desk off" />
                 ) : (
-                  <div className={kept.length === 1 ? 'desk single' : 'desk'}>{kept.map(seatCell)}</div>
+                  <div className={kept.length === 1 ? 'desk single' : 'desk'}>
+                    {kept.map(seatCell)}
+                    {sides.map((side) => aeshSquare(row, table, side))}
+                  </div>
                 )}
               </div>
             )
@@ -101,6 +123,10 @@ export function SeatingPlan(props: Props) {
       {teacherView && board}
     </div>
   )
+}
+
+function aeshTitle(aeshName: string, student: string): string {
+  return aeshName.trim() ? `${aeshName.trim()}, AESH de ${student}` : `AESH de ${student}`
 }
 
 function lockTitle(occupied: boolean, locked: boolean): string {

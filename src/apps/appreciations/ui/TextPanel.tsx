@@ -1,0 +1,54 @@
+import { useState } from 'react'
+import { nextReroll } from '../core/generate.ts'
+import { statusLabels, type Appreciation } from './appreciation.ts'
+import { copyText } from './browser.ts'
+
+interface Props {
+  appreciation: Appreciation
+  onReroll: (reroll: number) => void
+  onEdit: (text: string) => void
+  onRegenerate: () => void
+}
+
+export function TextPanel({ appreciation, onReroll, onEdit, onRegenerate }: Props) {
+  const [copied, setCopied] = useState<string>()
+  const { status, text, source, reroll } = appreciation
+  const tooLong = text.length > source.maxLength
+
+  const copy = async () => setCopied((await copyText(text)) ? text : undefined)
+
+  return (
+    <section className="panel appreciation-text">
+      <h2>
+        Appréciation <small className={`status ${status}`}>{statusLabels[status]}</small>
+      </h2>
+      {status === 'unrated' ? (
+        <p className="hint">Évalue au moins un critère pour que la plume écrive l’appréciation.</p>
+      ) : (
+        <>
+          <textarea
+            aria-label="Appréciation"
+            rows={5}
+            value={text}
+            onChange={(e) => onEdit(e.target.value)}
+          />
+          <p className={tooLong ? 'counter over' : 'counter'}>
+            {text.length} / {source.maxLength} caractères
+          </p>
+          <div className="plan-actions">
+            {status === 'edited' ? (
+              <button onClick={onRegenerate} title="Remplacer ta version par un texte généré">
+                Regénérer
+              </button>
+            ) : (
+              <button onClick={() => onReroll(nextReroll(source, reroll))}>Autre formulation</button>
+            )}
+            <button className="primary" onClick={copy}>
+              {copied === text ? 'Copié' : 'Copier'}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}

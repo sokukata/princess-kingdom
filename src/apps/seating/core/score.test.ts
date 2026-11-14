@@ -1,18 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { mulberry32 } from '../../../shared/random.ts'
 import { compile, fillCost } from './compile.ts'
 import { randomSeating, realisticClass } from './fixtures.ts'
 import type { Seating } from './model.ts'
-import { mulberry32 } from './random.ts'
 import { applyMove, cost, explain, fromSeating, moveDelta, toSeating } from './score.ts'
 
-// Seats two tablemates of the last validated plan together again at the first table, on a full plan.
-function withPreviousTablemates(seating: Seating, last: Seating): Seating {
-  const left = Object.keys(last).find((key) => key.endsWith('-0') && last[key.slice(0, -1) + '1'])!
+// Moves each student to its target seat, swapping with its occupant, on a full plan.
+function seatAt(seating: Seating, moves: [string, string][]): Seating {
   const result = { ...seating }
-  for (const [id, target] of [
-    [last[left], '0-0-0'],
-    [last[left.slice(0, -1) + '1'], '0-0-1'],
-  ]) {
+  for (const [id, target] of moves) {
     const from = Object.keys(result).find((key) => result[key] === id)!
     result[from] = result[target]
     result[target] = id
@@ -20,11 +16,29 @@ function withPreviousTablemates(seating: Seating, last: Seating): Seating {
   return result
 }
 
+// Seats two tablemates of the last validated plan together again at the first table.
+function withPreviousTablemates(seating: Seating, last: Seating): Seating {
+  const left = Object.keys(last).find((key) => key.endsWith('-0') && last[key.slice(0, -1) + '1'])!
+  return seatAt(seating, [
+    [last[left], '0-0-0'],
+    [last[left.slice(0, -1) + '1'], '0-0-1'],
+  ])
+}
+
 describe('score', () => {
   const { students, config } = realisticClass()
   config.room.disabledSeats = ['1-1-0', '3-2-1', '5-0-0', '5-0-1'] // two single desks, one table removed
+  config.aesh = { s20: '', s23: 'Mme Roy', s24: '' }
   const { problem } = compile(students, config)
-  const seating = withPreviousTablemates(randomSeating(students, config.room, 7), config.history.at(-1)!.seating)
+  // One student with an AESH against the wall, two AESH in the same aisle.
+  const seating = seatAt(
+    withPreviousTablemates(randomSeating(students, config.room, 7), config.history.at(-1)!.seating),
+    [
+      ['s20', '2-0-0'],
+      ['s23', '3-0-1'],
+      ['s24', '3-1-0'],
+    ],
+  )
 
   it('computes the same cost change incrementally as from scratch', () => {
     const a = fromSeating(problem, seating)
@@ -54,7 +68,7 @@ describe('score', () => {
     const issues = explain(problem, a)
     const fill = students.reduce((sum, _, x) => sum + fillCost(problem.seats[a.seatOf[x]].row), 0)
     expect(new Set(issues.map((issue) => issue.kind))).toEqual(
-      new Set(['front', 'rotation', 'separate', 'together', 'mix', 'previous']),
+      new Set(['front', 'rotation', 'separate', 'together', 'aeshWall', 'aeshAisle', 'mix', 'previous']),
     )
     expect(cost(problem, a)).toBeCloseTo(issues.reduce((sum, issue) => sum + issue.points, 0) + fill, 9)
   })

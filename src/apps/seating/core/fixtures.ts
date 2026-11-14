@@ -1,6 +1,6 @@
 import type { Student } from '../../../shared/classes/model.ts'
+import { mulberry32, shuffle } from '../../../shared/random.ts'
 import { defaultConfig, type Room, type Rule, type Seating, type SeatingConfig } from './model.ts'
-import { mulberry32, shuffle } from './random.ts'
 import { buildSeats } from './room.ts'
 
 export function makeStudents(count: number): Student[] {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backCost, backness, compile, frontCost, separationCost, togetherCost } from './compile.ts'
+import { backCost, backness, compile, frontCost, separationCost, togetherCost, WEIGHTS } from './compile.ts'
 import { makeConfig, makeRoom, makeStudents } from './fixtures.ts'
 import { buildSeats, type Seat } from './room.ts'
 
@@ -133,6 +133,7 @@ describe('compile', () => {
         ],
         front: ['gone'],
         pins: { gone: '0-0-0' },
+        aesh: { gone: '', s0: '' },
         rotateFrontBack: true,
         avoidPreviousNeighbours: true,
         history: [{ date: '2026-09-01', seating: { '4-0-0': 'gone', '4-0-1': 's2' } }],
@@ -142,5 +143,42 @@ describe('compile', () => {
     expect(problem.pairs).toEqual([[{ other: 1, kind: 'separate' }], [{ other: 0, kind: 'separate' }], []])
     expect([...problem.pinned]).toEqual([-1, -1, -1])
     expect([...problem.previousTablemates].every((weight) => weight === 0)).toBe(true)
+  })
+
+  it('keeps a student with an AESH off the walls, and two AESH out of the same aisle of a row', () => {
+    const config = makeConfig({ room: makeRoom(2, 3), aesh: { s0: '', s1: 'Mme Roy' } })
+    const { problem, warnings } = compile(makeStudents(3), config)
+    const S = problem.seats.length
+    const seat = (key: string) => problem.seatIndex.get(key)!
+    const unary = (x: number, key: string) => problem.unary[x * S + seat(key)]
+    const aesh = (a: string, b: string) => problem.kernels.aesh[seat(a) * S + seat(b)]
+    expect(warnings).toEqual([])
+    expect(problem.aesh).toEqual([true, true, false])
+    expect(problem.pairs).toEqual([[{ other: 1, kind: 'aesh' }], [{ other: 0, kind: 'aesh' }], []])
+    expect(unary(0, '0-0-0') - unary(2, '0-0-0')).toBe(WEIGHTS.aeshWall) // left wall
+    expect(unary(0, '1-2-1') - unary(2, '1-2-1')).toBe(WEIGHTS.aeshWall) // right wall
+    expect(unary(0, '0-0-1')).toBe(unary(2, '0-0-1'))
+    expect(aesh('0-0-1', '0-1-0')).toBe(WEIGHTS.aeshAisle) // both in aisle 1
+    expect(aesh('0-1-1', '0-2-0')).toBe(WEIGHTS.aeshAisle) // both in aisle 2
+    expect(aesh('0-0-1', '0-1-1')).toBe(0)
+    expect(aesh('0-0-1', '1-1-0')).toBe(0) // another row
+    expect(aesh('0-0-0', '0-0-0')).toBe(0) // the wall is no aisle
+  })
+
+  it('warns when no seat gives onto an aisle, only with an AESH', () => {
+    const warning = "Aucune place ne donne sur une allée : les AESH n'ont pas de place à côté de leur élève."
+    expect(compile(makeStudents(4), makeConfig({ room: makeRoom(3, 1), aesh: { s0: '' } })).warnings).toEqual([warning])
+    expect(compile(makeStudents(4), makeConfig({ room: makeRoom(3, 1) })).warnings).toEqual([])
+    const singles = { ...makeRoom(3, 2), seatsPerTable: 1 as const }
+    expect(compile(makeStudents(4), makeConfig({ room: singles, aesh: { s0: '' } })).warnings).toEqual([])
+  })
+
+  it('reads a configuration saved before the AESH', () => {
+    const config = makeConfig({ room: makeRoom(2, 3) })
+    delete config.aesh
+    const { problem, warnings } = compile(makeStudents(4), config)
+    expect(warnings).toEqual([])
+    expect(problem.aesh).toEqual([false, false, false, false])
+    expect(problem.pairs.flat()).toEqual([])
   })
 })

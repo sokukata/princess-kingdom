@@ -1,5 +1,5 @@
+import { mulberry32, shuffle } from '../../../shared/random.ts'
 import type { Problem } from './compile.ts'
-import { mulberry32, shuffle } from './random.ts'
 import { range } from './room.ts'
 import { applyMove, cost, emptyAssignment, moveDelta, place, type Assignment } from './score.ts'
 

@@ -1,6 +1,6 @@
 import type { Student, StudentId } from '../../../shared/classes/model.ts'
 import type { Room, SeatKey, SeatingConfig } from './model.ts'
-import { buildSeats, parseSeatKey, tableKey, type Seat } from './room.ts'
+import { aeshAisle, buildSeats, parseSeatKey, range, tableKey, type Seat } from './room.ts'
 
 // Starting values, checked by the solver tests.
 export const WEIGHTS = {
@@ -11,6 +11,8 @@ export const WEIGHTS = {
   previous: [15, 10, 5], // tablemates in the last, second-to-last and third-to-last validated plans
   rotation: 30,
   fill: 1, // × row, for every student: empty seats go to the back
+  aeshWall: 200, // a student with an AESH against a wall, where she has no room
+  aeshAisle: 80, // two AESH in the same aisle of a row
 }
 
 // Position across the room, from 0 (left wall) to 1 (right wall).
@@ -65,7 +67,7 @@ export const rotationCost = (previousBackness: number, row: number, rows: number
 
 export interface PairTerm {
   other: number
-  kind: 'separate' | 'together'
+  kind: 'separate' | 'together' | 'aesh'
 }
 
 // Students and seats are numbered by their index in `students` and `seats`.
@@ -77,7 +79,7 @@ export interface Problem {
   rows: number
   seatIndex: Map<SeatKey, number>
   studentIndex: Map<StudentId, number>
-  unary: Float64Array // [student * seats + seat]: front, back, rotation and fill
+  unary: Float64Array // [student * seats + seat]: front, back, rotation, fill and AESH against a wall
   pairs: PairTerm[][] // [student]: each pair rule is listed for both students
   kernels: Record<PairTerm['kind'], Float64Array> // [seat * seats + seat]
   tablemate: Float64Array // [student * students + student]: mix and previous tablemates
@@ -85,6 +87,8 @@ export interface Problem {
   keptEmpty: Set<number> // seats left empty
   front: boolean[]
   back: boolean[]
+  aesh: boolean[]
+  aisle: Int32Array // [seat]: aisle of the AESH of its student, or -1 against a wall
   previousBackness: Float64Array // [student], 0 when the rotation is off
   previousTablemates: Float64Array // [student * students + student], 0 when the option is off
   mixGender: boolean
@@ -128,6 +132,10 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
     if (rule.kind === 'separate') xs.forEach((x, i) => xs.slice(i + 1).forEach((y) => addPair('separate', x, y)))
     else if (xs.length === 2) addPair('together', xs[0], xs[1])
   }
+  const aeshIds = config.aesh ?? {}
+  const aesh = students.map((student) => aeshIds[student.id] !== undefined)
+  const withAesh = range(N).filter((x) => aesh[x])
+  withAesh.forEach((x, i) => withAesh.slice(i + 1).forEach((y) => addPair('aesh', x, y)))
   for (const id of listed) {
     const [kind, x, y] = id.split(':')
     if (kind === 'separate' && listed.has(`together:${x}:${y}`)) {
@@ -135,11 +143,25 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
     }
   }
 
-  const kernels = { separate: new Float64Array(S * S), together: new Float64Array(S * S) }
+  const aisle = Int32Array.from(seats, (seat) => {
+    const n = aeshAisle(seat, room)
+    return n > 0 && n < room.tablesPerRow ? n : -1
+  })
+  if (withAesh.length > 0 && aisle.every((n) => n < 0)) {
+    warnings.push("Aucune place ne donne sur une allée : les AESH n'ont pas de place à côté de leur élève.")
+  }
+
+  const kernels = {
+    separate: new Float64Array(S * S),
+    together: new Float64Array(S * S),
+    aesh: new Float64Array(S * S),
+  }
   for (let a = 0; a < S; a++) {
     for (let b = 0; b < S; b++) {
       kernels.separate[a * S + b] = separationCost(seats[a], seats[b], room)
       kernels.together[a * S + b] = togetherCost(seats[a], seats[b], room)
+      const sameAisle = seats[a].row === seats[b].row && aisle[a] >= 0 && aisle[a] === aisle[b]
+      kernels.aesh[a * S + b] = sameAisle ? WEIGHTS.aeshAisle : 0
     }
   }
 
@@ -203,7 +225,8 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
         fillCost(row) +
         (front[x] ? frontCost(row) : 0) +
         (back[x] ? backCost(row, room.rows) : 0) +
-        rotationCost(previousBackness[x], row, room.rows)
+        rotationCost(previousBackness[x], row, room.rows) +
+        (aesh[x] && aisle[s] < 0 ? WEIGHTS.aeshWall : 0)
     }
   }
 
@@ -253,6 +276,8 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
       keptEmpty,
       front,
       back,
+      aesh,
+      aisle,
       previousBackness,
       previousTablemates,
       mixGender: config.mixGender,

@@ -16,4 +16,18 @@ export const tools: Tool[] = [
     description: 'Place ta cour : bavards séparés, VIP devant, binômes, rotation…',
     load: () => import('./apps/seating/SeatingApp.tsx'),
   },
+  {
+    id: 'groups',
+    title: 'Groupes de travail',
+    icon: '💂💂💂',
+    description: 'Forme tes équipes : affinités réunies, bavards séparés, filles et garçons à parts égales…',
+    load: () => import('./apps/groups/GroupsApp.tsx'),
+  },
+  {
+    id: 'appreciations',
+    title: 'Appréciations',
+    icon: '🪶',
+    description: 'Note tes sujets d’un clic, la plume royale rédige le bulletin.',
+    load: () => import('./apps/appreciations/AppreciationsApp.tsx'),
+  },
 ]

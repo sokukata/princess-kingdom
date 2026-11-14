@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import type { Student, StudentId } from '../../../shared/classes/model.ts'
-import type { Rule, SeatingConfig } from '../core/model.ts'
+import type { Student } from '../../../shared/classes/model.ts'
+import type { SeatingConfig } from '../core/model.ts'
 import type { ConfigChange } from '../state.ts'
 
 interface Props {
@@ -9,38 +8,16 @@ interface Props {
   update: (change: ConfigChange) => void
 }
 
+// The rules are created from the student list; this panel lists them, with the options of the plan.
 export function RulesEditor({ students, config, update }: Props) {
-  const [selected, setSelected] = useState<StudentId[]>([])
   const names = new Map(students.map((s) => [s.id, s.name]))
-  const add = (rule: Rule) => {
-    update((c) => ({ rules: [...c.rules, rule] }))
-    setSelected([])
-  }
-  const toggle = (id: StudentId) =>
-    setSelected((ids) => (ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id]))
 
   return (
     <fieldset className="panel">
-      <legend>Règles</legend>
-      <p className="hint">Sélectionne des élèves, puis choisis la règle.</p>
-      <div className="chips">
-        {students.map((s) => (
-          <button key={s.id} className="chip" aria-pressed={selected.includes(s.id)} onClick={() => toggle(s.id)}>
-            {s.name}
-          </button>
-        ))}
-      </div>
-      <div className="rule-buttons">
-        <button disabled={selected.length < 2} onClick={() => add({ kind: 'separate', ids: selected })}>
-          <span aria-hidden="true">⚔️ </span>À séparer
-        </button>
-        <button
-          disabled={selected.length !== 2}
-          onClick={() => add({ kind: 'together', ids: [selected[0], selected[1]] })}
-        >
-          <span aria-hidden="true">💞 </span>Binôme
-        </button>
-      </div>
+      <legend>Règles et options</legend>
+      {config.rules.length === 0 && (
+        <p className="hint">Aucune règle : coche des élèves dans la liste pour en créer une.</p>
+      )}
 
       {config.rules.length > 0 && (
         <ul className="rules">

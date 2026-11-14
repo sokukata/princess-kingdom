@@ -1,0 +1,147 @@
+.appreciations .views {
+  margin-left: auto;
+}
+
+.sheet-nav .sheet-name {
+  font-family: var(--title-font);
+  font-size: 1.15rem;
+  color: var(--plum);
+}
+
+.sheet-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.sheet-layout .appreciation-text {
+  position: sticky;
+  top: 12px;
+}
+
+.criterion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.criterion.focused {
+  background: var(--gold-soft);
+}
+
+.criterion-label {
+  flex: 1 1 180px;
+}
+
+.levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.levels .chip {
+  padding: 2px 8px;
+  font-size: 0.8rem;
+}
+
+.levels .chip.level-1[aria-pressed='true'] {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.levels .chip.level-2[aria-pressed='true'] {
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border-color: var(--gold);
+}
+
+.levels .chip.level-3[aria-pressed='true'] {
+  color: var(--success-text);
+  background: var(--success-bg);
+  border-color: var(--success-text);
+}
+
+.appreciation-text h2 {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.appreciation-text textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.counter {
+  margin: 4px 0 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.counter.over {
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.status {
+  padding: 1px 8px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.status.unrated {
+  color: var(--muted);
+  background: var(--bg);
+}
+
+.status.generated {
+  color: var(--success-text);
+  background: var(--success-bg);
+}
+
+.status.edited {
+  color: var(--gold-text);
+  background: var(--gold-soft);
+}
+
+.appreciations-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.appreciations-table th,
+.appreciations-table td {
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.appreciations-table button.link {
+  padding: 0;
+  color: var(--accent);
+  text-align: left;
+  background: none;
+  border: none;
+}
+
+.settings-category {
+  margin: 10px 0;
+}
+
+.settings-category .chips {
+  margin-top: 4px;
+}
+
+@media (width <= 800px) {
+  .sheet-layout {
+    grid-template-columns: 1fr;
+  }
+}

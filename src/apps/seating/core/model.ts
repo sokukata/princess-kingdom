@@ -26,6 +26,7 @@ export interface SeatingConfig {
   rotateFrontBack: boolean
   pins: Record<StudentId, SeatKey>
   emptyPins?: SeatKey[] // seats kept empty when generating
+  aesh?: Record<StudentId, string> // students with an AESH, and her name ('' is shown as "AESH")
   current?: Seating
   history: { date: string; seating: Seating }[] // validated plans, most recent last
 }
@@ -41,6 +42,7 @@ export function defaultConfig(): SeatingConfig {
     rotateFrontBack: true,
     pins: {},
     emptyPins: [],
+    aesh: {},
     history: [],
   }
 }
