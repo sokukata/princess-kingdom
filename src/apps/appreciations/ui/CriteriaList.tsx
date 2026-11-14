@@ -13,7 +13,7 @@ interface Props {
   onHighlight: (id: CriterionId) => void
 }
 
-// What a criterion rates shows in a hint box when hovering its name, or when the keyboard focus is on its row.
+// What a criterion rates shows in a hint box while the mouse is on its name.
 export function CriteriaList({ criteria, values, highlighted, focused, onFocus, onChange, onHighlight }: Props) {
   return (
     <div className="criteria">

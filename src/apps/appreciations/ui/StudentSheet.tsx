@@ -60,7 +60,11 @@ export function StudentSheet({ students, index, onSelect, criteria, store }: Pro
           féminin.
         </p>
       )}
-      <p className="hint">Clavier : ↑ ↓ pour le critère, 1 à 4 pour le niveau, 0 pour effacer, ← → pour l’élève.</p>
+      <p className="hint">
+        Clavier : ↑ ↓ pour le critère, 1 à 4 pour le niveau, 0 pour effacer, ← → pour l’élève.
+        <br />
+        Clique sur l’étoile ☆ d’un critère pour qu’il apparaisse à coup sûr dans l’appréciation.
+      </p>
       <div className="sheet-layout">
         <CriteriaList
           criteria={criteria}

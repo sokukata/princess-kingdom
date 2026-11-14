@@ -95,7 +95,7 @@
   color: var(--gold);
 }
 
-/* The hint box: above the criterion name, shown on hover and on the row that has the keyboard focus. */
+/* The hint box: above the criterion name, shown while the mouse is on the name only. */
 .criterion-name {
   position: relative;
   cursor: help;
@@ -135,8 +135,7 @@
   border-top-color: var(--plum);
 }
 
-.criterion-name:hover .criterion-hint,
-.criterion.focused:focus-within .criterion-hint {
+.criterion-name:hover .criterion-hint {
   visibility: visible;
   opacity: 1;
 }
