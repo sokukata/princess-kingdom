@@ -8,6 +8,7 @@ import {
   type CriterionId,
   type Level,
   type StudentEntry,
+  type Tone,
 } from './core/model.ts'
 
 interface AppreciationsData {
@@ -52,6 +53,17 @@ export function useAppreciations(classId: string) {
           if (level) levels[criterion] = level
           else delete levels[criterion]
           return { ...e, levels }
+        }),
+      setTone: (id: StudentId, tone: Tone) => editEntry(id, (e) => ({ ...e, tone })),
+      toggleHighlight: (id: StudentId, criterion: CriterionId) =>
+        editEntry(id, (e) => {
+          const highlighted = e.highlighted ?? []
+          return {
+            ...e,
+            highlighted: highlighted.includes(criterion)
+              ? highlighted.filter((h) => h !== criterion)
+              : [...highlighted, criterion],
+          }
         }),
       reroll: (id: StudentId, reroll: number) => editEntry(id, (e) => ({ ...e, reroll, text: undefined })),
       setText: (id: StudentId, text: string) => editEntry(id, (e) => ({ ...e, text })),

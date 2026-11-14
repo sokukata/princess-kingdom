@@ -19,7 +19,8 @@ export function appreciationOf(student: Student, entry: StudentEntry, config: Cl
     Object.entries(entry.levels).filter(([id]) => !config.hidden.includes(id as keyof Levels)),
   )
   const { period, maxLength } = config
-  const source = { studentId: student.id, levels, gender: student.gender, period, maxLength }
+  const { tone, highlighted } = entry
+  const source = { studentId: student.id, levels, gender: student.gender, period, maxLength, tone, highlighted }
   const reroll = entry.reroll ?? 0
   if (entry.text !== undefined) return { status: 'edited', text: entry.text, source, reroll }
   if (Object.keys(levels).length === 0) return { status: 'unrated', text: '', source, reroll }

@@ -71,7 +71,50 @@
 }
 
 .criterion-label {
+  display: flex;
   flex: 1 1 180px;
+  gap: 4px;
+  align-items: center;
+}
+
+.highlight {
+  padding: 0 4px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: none;
+}
+
+.highlight:hover:not(:disabled) {
+  color: var(--gold);
+  border: none;
+}
+
+.highlight.on {
+  color: var(--gold);
+}
+
+.tones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.tones-label {
+  margin-right: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.tones .chip {
+  padding: 2px 9px;
+  font-size: 0.85rem;
 }
 
 .levels {

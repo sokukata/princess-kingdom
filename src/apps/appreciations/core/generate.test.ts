@@ -120,6 +120,127 @@ describe('generate', () => {
     expect(generate(levels, { ...options(1), period: 'S2' })).not.toMatch(/trimestre/i)
   })
 
+  describe('tones and highlighted criteria', () => {
+    // A very good student, chatty and disorganised; a weak student, good at speaking and well-behaved.
+    const good: Levels = {
+      results: 4,
+      abilities: 4,
+      knowledge: 4,
+      method: 4,
+      homework: 4,
+      involvement: 4,
+      assignments: 4,
+      organisation: 2,
+      participation: 4,
+      attention: 3,
+      behaviour: 2,
+      respect: 4,
+    }
+    const weak: Levels = {
+      results: 1,
+      knowledge: 1,
+      method: 1,
+      homework: 2,
+      assignments: 2,
+      speaking: 4,
+      participation: 4,
+      behaviour: 4,
+      respect: 4,
+    }
+    const strength = (levels: Levels, text: string) =>
+      (Object.entries(levels) as [keyof Levels, Level][]).some(
+        ([id, level]) => level >= 3 && bank[id].levels[level].some((v) => text.includes(render(v, 'M', 'T1'))),
+      )
+    const weakness = (levels: Levels, text: string) =>
+      (Object.entries(levels) as [keyof Levels, Level][]).some(
+        ([id, level]) => level <= 2 && bank[id].levels[level].some((v) => text.includes(render(v, 'M', 'T1'))),
+      )
+    const toneText = (levels: Levels, tone: GenerateOptions['tone'], seed: number, highlighted?: (keyof Levels)[]) =>
+      generate(levels, { ...options(seed, 'M', 300), tone, highlighted })
+
+    it('praising and severe speak of one side only', () => {
+      for (let seed = 0; seed < 20; seed++) {
+        for (const levels of [good, weak]) {
+          const praising = toneText(levels, 'praising', seed)
+          expect(weakness(levels, praising), praising).toBe(false)
+          expect(strength(levels, praising), praising).toBe(true)
+          const severe = toneText(levels, 'severe', seed)
+          expect(strength(levels, severe), severe).toBe(false)
+          expect(weakness(levels, severe) || /Il faut|attendu|doit/.test(severe), severe).toBe(true)
+        }
+      }
+    })
+
+    it('encouraging puts a strength in a weak student’s comment, demanding a weakness in a good one’s', () => {
+      for (let seed = 0; seed < 20; seed++) {
+        const encouraging = generate(weak, { ...options(seed, 'M', 200), tone: 'encouraging' })
+        expect(strength(weak, encouraging), encouraging).toBe(true)
+        const demanding = generate(good, { ...options(seed, 'M', 200), tone: 'demanding' })
+        // The weakness may be said by its own sentence, by a combination, or by the advice that closes the text.
+        const said = [
+          ...combinations.flatMap((c) => c.variants),
+          ...(['organisation', 'behaviour'] as const).flatMap((id) => bank[id].advice ?? []),
+        ].map((v) => render(v, 'M', 'T1'))
+        expect(weakness(good, demanding) || said.some((s) => demanding.includes(s)), demanding).toBe(true)
+      }
+    })
+
+    it('balanced nuances the assessment with a point the other way when there is room', () => {
+      const nuanced = Array.from({ length: 20 }, (_, seed) => toneText(weak, 'balanced', seed)).filter((t) =>
+        strength(weak, t),
+      )
+      expect(nuanced.length).toBeGreaterThanOrEqual(18)
+    })
+
+    it('opens without a judgement when a one-sided text goes against the assessment', () => {
+      for (let seed = 0; seed < 10; seed++) {
+        expect(toneText(weak, 'praising', seed)).not.toMatch(/^(Trimestre|Bilan) (très )?(insuffisant|fragile|difficile)/)
+        expect(toneText(good, 'severe', seed)).not.toMatch(/^(Excellent|Très bon|Bon)/)
+      }
+    })
+
+    it('falls back to a two-sided text when the student has nothing on the chosen side', () => {
+      const excellent: Levels = { results: 4, knowledge: 4, homework: 4, participation: 4, behaviour: 4 }
+      const text = toneText(excellent, 'severe', 1)
+      expect(sentences(text).length, text).toBeGreaterThanOrEqual(3)
+    })
+
+    it('always speaks of a highlighted criterion, whatever the tone and the length', () => {
+      const levels: Levels = { results: 3, knowledge: 3, homework: 3, participation: 3, behaviour: 3, punctuality: 4 }
+      const punctual = bank.punctuality.levels[4].map((v) => render(v, 'M', 'T1'))
+      for (const tone of ['praising', 'encouraging', 'balanced', 'demanding', 'severe'] as const) {
+        for (let seed = 0; seed < 10; seed++) {
+          const text = generate(levels, { ...options(seed, 'M', 120), tone, highlighted: ['punctuality'] })
+          expect(punctual.some((v) => text.includes(v)), `${tone}: ${text}`).toBe(true)
+          expect(text.length).toBeLessThanOrEqual(120)
+        }
+      }
+    })
+
+    it('spreads the sentences over the categories before saying more about one', () => {
+      // Every criterion of each category rated alike: the first three body sentences come from three categories.
+      const levels: Levels = {
+        knowledge: 3,
+        reasoning: 3,
+        method: 3,
+        homework: 3,
+        involvement: 3,
+        assignments: 3,
+        participation: 3,
+        attention: 3,
+        behaviour: 3,
+      }
+      const categoryOfText = (text: string) =>
+        criteria.find((c) => bank[c.id].levels[levels[c.id] ?? 3].some((v) => text.startsWith(render(v, 'M', 'T1'))))
+          ?.category
+      for (let seed = 0; seed < 10; seed++) {
+        const body = sentences(generate(levels, options(seed, 'M', 200))).slice(1, -1)
+        const categories = new Set(body.map((s) => categoryOfText(s.trim())))
+        expect(categories.size, body.join(' ')).toBe(Math.min(3, body.length))
+      }
+    })
+  })
+
   it('finds another wording on reroll', () => {
     const levels: Levels = { results: 2, evolution: 4 }
     const student: StudentText = { studentId: 'x', levels, gender: 'F', period: 'T1', maxLength: 200 }

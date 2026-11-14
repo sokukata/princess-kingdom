@@ -6,12 +6,14 @@ const levels: Level[] = [1, 2, 3, 4]
 interface Props {
   criteria: Criterion[]
   values: Levels
+  highlighted: CriterionId[]
   focused: number
   onFocus: (index: number) => void
   onChange: (id: CriterionId, level: Level | undefined) => void
+  onHighlight: (id: CriterionId) => void
 }
 
-export function CriteriaList({ criteria, values, focused, onFocus, onChange }: Props) {
+export function CriteriaList({ criteria, values, highlighted, focused, onFocus, onChange, onHighlight }: Props) {
   return (
     <div className="criteria">
       {categories.map((category) => {
@@ -23,13 +25,30 @@ export function CriteriaList({ criteria, values, focused, onFocus, onChange }: P
             {items.map((criterion) => {
               const index = criteria.indexOf(criterion)
               const value = values[criterion.id]
+              const star = highlighted.includes(criterion.id)
               return (
                 <div
                   key={criterion.id}
                   className={index === focused ? 'criterion focused' : 'criterion'}
                   onClick={() => onFocus(index)}
                 >
-                  <span className="criterion-label">{criterion.label}</span>
+                  <span className="criterion-label">
+                    <button
+                      className={star ? 'highlight on' : 'highlight'}
+                      aria-pressed={star}
+                      title={
+                        star
+                          ? 'Ne plus mettre ce critère en avant'
+                          : value === undefined
+                            ? 'Mettre en avant : note d’abord ce critère'
+                            : 'Mettre ce critère en avant : il apparaîtra dans l’appréciation'
+                      }
+                      onClick={() => onHighlight(criterion.id)}
+                    >
+                      {star ? '★' : '☆'}
+                    </button>
+                    {criterion.label}
+                  </span>
                   <span className="levels" role="group" aria-label={criterion.label}>
                     {levels.map((level) => (
                       <button

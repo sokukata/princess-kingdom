@@ -17,6 +17,21 @@ export const openings: Record<Band, string[]> = {
   excellent: ['Excellent {p}.', 'Très bon {p}.', 'Très bon bilan ce {p}.'],
 }
 
+// Openings that do not judge, for a one-sided text whose side goes against the assessment.
+export const neutralOpenings = ['Bilan du {p}.', 'Ce {p} appelle plusieurs remarques.']
+
+// Closing sentences for the encouraging tone: they value what is done and look ahead, whatever the assessment.
+export const encouragements: Record<Band, string[]> = {
+  veryWeak: [
+    'Les points d’appui existent : il faut s’en servir pour progresser.',
+    'Avec des efforts réguliers, des progrès sont possibles.',
+  ],
+  weak: ['Les efforts engagés doivent être poursuivis.', 'Les bases sont là pour progresser au prochain {p}.'],
+  average: ['Les progrès sont à portée, il faut persévérer.', 'Ces qualités permettront de progresser encore.'],
+  good: ['C’est un bon travail, à poursuivre.', 'Il faut continuer ainsi.'],
+  excellent: ['Il faut continuer ainsi.', 'C’est un travail de qualité, à poursuivre.'],
+}
+
 // Closing sentences when no criterion calls for a precise advice.
 export const conclusions: Record<Band, string[]> = {
   veryWeak: [

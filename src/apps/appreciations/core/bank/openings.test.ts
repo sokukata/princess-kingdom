@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '../text.ts'
 import { expectCleanSentences } from './checkBank.ts'
-import { bandOf, conclusions, openings } from './openings.ts'
+import { bandOf, conclusions, encouragements, neutralOpenings, openings } from './openings.ts'
 
 describe('openings and conclusions', () => {
   it('are clean sentences for every band', () => {
     for (const [band, variants] of Object.entries(openings)) expectCleanSentences(variants, `opening ${band}`)
     for (const [band, variants] of Object.entries(conclusions)) expectCleanSentences(variants, `conclusion ${band}`)
+    for (const [band, variants] of Object.entries(encouragements)) {
+      expectCleanSentences(variants, `encouragement ${band}`)
+    }
+    expectCleanSentences(neutralOpenings, 'neutral opening')
   })
 
   it('name the period with a capital at the start of a sentence', () => {

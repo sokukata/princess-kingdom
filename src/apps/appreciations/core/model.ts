@@ -54,8 +54,15 @@ export function previousPeriod(period: PeriodId): PeriodId | undefined {
   return ({ T2: 'T1', T3: 'T2', S2: 'S1' } as Partial<Record<PeriodId, PeriodId>>)[period]
 }
 
+// From the most positive to the most severe. Praising: the strengths only. Encouraging: the strengths first, whatever
+// the assessment. Balanced: the overall assessment, with one point the other way when there is one. Demanding: what
+// is to improve first, even for a good student. Severe: what is to improve only.
+export type Tone = 'praising' | 'encouraging' | 'balanced' | 'demanding' | 'severe'
+
 export interface StudentEntry {
   levels: Levels
+  tone?: Tone // balanced when missing
+  highlighted?: CriterionId[] // criteria the text must speak of
   reroll?: number
   text?: string // only when the teacher edited the generated text
 }

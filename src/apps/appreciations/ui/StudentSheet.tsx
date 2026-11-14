@@ -65,15 +65,18 @@ export function StudentSheet({ students, index, onSelect, criteria, store }: Pro
         <CriteriaList
           criteria={criteria}
           values={entry.levels}
+          highlighted={entry.highlighted ?? []}
           focused={row}
           onFocus={setFocused}
           onChange={(id, level) => store.setLevel(student.id, id, level)}
+          onHighlight={(id) => store.toggleHighlight(student.id, id)}
         />
         <TextPanel
           appreciation={appreciation}
           onReroll={(reroll) => store.reroll(student.id, reroll)}
           onEdit={(text) => store.setText(student.id, text)}
           onRegenerate={() => store.regenerate(student.id)}
+          onTone={(tone) => store.setTone(student.id, tone)}
         />
       </div>
     </div>
