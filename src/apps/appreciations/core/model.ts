@@ -54,10 +54,11 @@ export function previousPeriod(period: PeriodId): PeriodId | undefined {
   return ({ T2: 'T1', T3: 'T2', S2: 'S1' } as Partial<Record<PeriodId, PeriodId>>)[period]
 }
 
-// From the most positive to the most severe. Praising: the strengths only. Encouraging: the strengths first, whatever
-// the assessment. Balanced: the overall assessment, with one point the other way when there is one. Demanding: what
-// is to improve first, even for a good student. Severe: what is to improve only.
-export type Tone = 'praising' | 'encouraging' | 'balanced' | 'demanding' | 'severe'
+// The slider, from the most positive text to the most severe, whatever the student. Praising: the strengths only.
+// Demanding: mostly the strengths, with at least one point to improve (all is not perfect). Balanced: the assessment,
+// with one point the other way when there is one. Encouraging: mostly the points to improve, with at least one
+// strength (all is not lost). Severe: the points to improve only.
+export type Tone = 'praising' | 'demanding' | 'balanced' | 'encouraging' | 'severe'
 
 export interface StudentEntry {
   levels: Levels

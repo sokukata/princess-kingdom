@@ -171,17 +171,64 @@ describe('generate', () => {
       }
     })
 
-    it('encouraging puts a strength in a weak student’s comment, demanding a weakness in a good one’s', () => {
+    it('encouraging always has a strength, demanding always a point to improve, even in a short text', () => {
+      // Mostly on one side, with a single point the other way.
+      const struggling: Levels = { results: 1, knowledge: 1, method: 2, homework: 2, assignments: 1, respect: 3 }
+      const excelling: Levels = { results: 4, knowledge: 4, method: 4, homework: 4, assignments: 4, punctuality: 2 }
       for (let seed = 0; seed < 20; seed++) {
-        const encouraging = generate(weak, { ...options(seed, 'M', 200), tone: 'encouraging' })
-        expect(strength(weak, encouraging), encouraging).toBe(true)
-        const demanding = generate(good, { ...options(seed, 'M', 200), tone: 'demanding' })
-        // The weakness may be said by its own sentence, by a combination, or by the advice that closes the text.
-        const said = [
-          ...combinations.flatMap((c) => c.variants),
-          ...(['organisation', 'behaviour'] as const).flatMap((id) => bank[id].advice ?? []),
-        ].map((v) => render(v, 'M', 'T1'))
-        expect(weakness(good, demanding) || said.some((s) => demanding.includes(s)), demanding).toBe(true)
+        for (const maxLength of [120, 200]) {
+          const encouraging = generate(struggling, { ...options(seed, 'M', maxLength), tone: 'encouraging' })
+          expect(strength(struggling, encouraging), encouraging).toBe(true)
+          const demanding = generate(excelling, { ...options(seed, 'M', maxLength), tone: 'demanding' })
+          const punctuality = [...Object.values(bank.punctuality.levels).flat(), ...(bank.punctuality.advice ?? [])]
+          expect(punctuality.some((v) => demanding.includes(render(v, 'M', 'T1'))), demanding).toBe(true)
+        }
+      }
+    })
+
+    // Sentences of the body on each side, the opening and the conclusion left out.
+    const sides = (levels: Levels, text: string) => {
+      const body = sentences(text).slice(1, -1)
+      const said = (s: string, side: (l: Level) => boolean) =>
+        (Object.entries(levels) as [keyof Levels, Level][]).some(
+          ([id, level]) => side(level) && bank[id].levels[level].some((v) => s.trim() === render(v, 'M', 'T1')),
+        )
+      return {
+        strengths: body.filter((s) => said(s, (l) => l >= 3)).length,
+        weaknesses: body.filter((s) => said(s, (l) => l <= 2)).length,
+      }
+    }
+
+    it('demanding is mostly strengths with one point to improve, encouraging the reverse, whatever the student', () => {
+      const advice = (levels: Levels) =>
+        (Object.keys(levels) as (keyof Levels)[]).flatMap((id) => bank[id].advice ?? []).map((v) => render(v, 'M', 'T1'))
+      for (let seed = 0; seed < 20; seed++) {
+        for (const levels of [good, weak]) {
+          const demanding = toneText(levels, 'demanding', seed)
+          const d = sides(levels, demanding)
+          expect(d.strengths, demanding).toBeGreaterThanOrEqual(1)
+          expect(d.weaknesses, demanding).toBeLessThanOrEqual(1)
+          // The point to improve is a sentence of the body, or the advice that closes the text.
+          expect(d.weaknesses === 1 || advice(levels).some((a) => demanding.endsWith(a)), demanding).toBe(true)
+
+          const encouraging = toneText(levels, 'encouraging', seed)
+          const e = sides(levels, encouraging)
+          expect(e.weaknesses, encouraging).toBeGreaterThanOrEqual(1)
+          expect(e.strengths, encouraging).toBe(1)
+        }
+      }
+    })
+
+    it('goes from the most positive text to the most severe along the slider', () => {
+      const order = ['praising', 'demanding', 'balanced', 'encouraging', 'severe'] as const
+      for (let seed = 0; seed < 10; seed++) {
+        for (const levels of [good, weak]) {
+          const share = order.map((tone) => {
+            const { strengths, weaknesses } = sides(levels, toneText(levels, tone, seed))
+            return weaknesses / Math.max(1, strengths + weaknesses)
+          })
+          for (let i = 1; i < share.length; i++) expect(share[i], `${order[i]}: ${share}`).toBeGreaterThanOrEqual(share[i - 1])
+        }
       }
     })
 

@@ -13,6 +13,7 @@ interface Props {
   onHighlight: (id: CriterionId) => void
 }
 
+// What a criterion rates shows in a hint box when hovering its name, or when the keyboard focus is on its row.
 export function CriteriaList({ criteria, values, highlighted, focused, onFocus, onChange, onHighlight }: Props) {
   return (
     <div className="criteria">
@@ -47,7 +48,12 @@ export function CriteriaList({ criteria, values, highlighted, focused, onFocus, 
                     >
                       {star ? '★' : '☆'}
                     </button>
-                    {criterion.label}
+                    <span className="criterion-name" aria-describedby={`hint-${criterion.id}`}>
+                      {criterion.label}
+                      <span className="criterion-hint" id={`hint-${criterion.id}`} role="tooltip">
+                        {criterion.hint}
+                      </span>
+                    </span>
                   </span>
                   <span className="levels" role="group" aria-label={criterion.label}>
                     {levels.map((level) => (

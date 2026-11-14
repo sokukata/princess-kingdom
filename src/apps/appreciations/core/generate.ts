@@ -66,12 +66,21 @@ const isWeak = (id: CriterionId, level: Level) => (id === 'evolution' ? level ==
 const direction = (id: CriterionId, level: Level) => (id === 'evolution' && level === 2 ? 0 : level >= 3 ? 1 : -1)
 const bandDirection = (band: Band) => ({ veryWeak: -1, weak: -1, average: 0, good: 1, excellent: 1 })[band]
 
-// The direction the text leans to: the overall assessment when balanced, the strengths or the points to improve when
-// the teacher chose another tone.
+// The direction the text leans to, along the slider: the strengths for praising and demanding, the points to improve
+// for encouraging and severe, the overall assessment when balanced. The slider describes the text, whatever the student.
 function leaning(tone: Tone, band: Band): number {
-  if (tone === 'praising' || tone === 'encouraging') return 1
-  if (tone === 'demanding' || tone === 'severe') return -1
+  if (tone === 'praising' || tone === 'demanding') return 1
+  if (tone === 'encouraging' || tone === 'severe') return -1
   return bandDirection(band)
+}
+
+// The point the text must make against what it leans to: one the other way than the assessment when balanced, a
+// strength when encouraging (all is not lost), a point to improve when demanding (all is not perfect). 0 when none.
+function nuance(tone: Tone, band: Band): number {
+  if (tone === 'encouraging') return 1
+  if (tone === 'demanding') return -1
+  if (tone === 'balanced') return -bandDirection(band)
+  return 0
 }
 
 // Lower comes first: sentences in the direction of the text, then extreme levels, then key criteria.
@@ -87,6 +96,7 @@ interface Candidate {
   order: number // place in the text: combinations first, then the criteria in the order of the list
   categories: Category[]
   direction: number
+  nuance?: boolean // a sentence that makes the nuance whatever its direction: a combination
   forced: boolean // a criterion the teacher highlighted
   conclusions?: string[]
 }
@@ -101,8 +111,11 @@ export function generate(levels: Levels, options: GenerateOptions): string {
   const random = mulberry32(seed)
   const band = bandOf(overall(levels) ?? 2.5)
   const lean = leaning(tone, band)
-  // Praising and severe speak of one side only; the conclusion advises in the tones that look for what to improve.
-  const oneSided = tone === 'praising' || tone === 'severe'
+  const needed = nuance(tone, band)
+  // All the tones but balanced lean to one side of the slider: they say each criterion on its own, combinations being
+  // two-sided, and keep to their side, plus the one nuance demanding and encouraging call for. The conclusion advises
+  // in the tones that look for what to improve.
+  const oneSided = tone !== 'balanced'
   const advising = tone !== 'praising' && tone !== 'encouraging'
   const forced = new Set(highlighted.filter((id) => levels[id]))
   const sentences: string[] = []
@@ -125,8 +138,7 @@ export function generate(levels: Levels, options: GenerateOptions): string {
   const fits = (variants: string[], room: number) => variantsOf(variants).find((t) => length() + 1 + t.length <= room)
 
   // Combinations come first, in the order of the list; their own conclusion then closes the text. One about a
-  // highlighted criterion speaks for it. A combination weighs a strength against a weakness, so a one-sided tone does
-  // without them and says each criterion on its own.
+  // highlighted criterion speaks for it.
   const covered = new Set<CriterionId>()
   const candidates: Candidate[] = []
   for (const [i, combination] of combinations.entries()) {
@@ -134,15 +146,15 @@ export function generate(levels: Levels, options: GenerateOptions): string {
     combination.covers.forEach((id) => covered.add(id))
     const { variants, conclusions } = combination
     const rated = combination.covers.filter((id) => levels[id])
-    // A combination weighs a strength against a weakness: it leads the text, except when the tone puts the strengths
-    // first, where it comes after them.
+    // A combination weighs a strength against a weakness, so it also makes the nuance of the balanced tone.
     candidates.push({
       variants,
       conclusions,
-      rank: lean > 0 && tone !== 'balanced' ? 6 : i - combinations.length,
+      rank: i - combinations.length,
       order: i - combinations.length,
       categories: [...new Set(rated.map((id) => categoryOf.get(id)!))],
       direction: 0,
+      nuance: true,
       forced: rated.some((id) => forced.has(id)),
     })
   }
@@ -167,23 +179,27 @@ export function generate(levels: Levels, options: GenerateOptions): string {
     })
   }
 
-  // A one-sided tone keeps the sentences of its side and the highlighted criteria. A student with nothing on that side
-  // gets the encouraging or demanding text instead of an empty one.
-  const sided = candidates.filter((c) => c.forced || c.direction === lean)
-  const restricted = oneSided && sided.some((c) => !c.forced) ? sided : candidates
-  // The opening judges the whole period: a one-sided text against that judgement opens without one.
-  const against = oneSided && restricted === sided && bandDirection(band) === -lean
+  // A one-sided tone keeps the sentences of its side, the highlighted criteria and the sentences that can make its
+  // nuance. A student with nothing on that side gets the balanced text instead of an empty one.
+  const sided = candidates.filter((c) => c.forced || c.direction === lean || (needed !== 0 && c.direction === needed))
+  const restricted = oneSided && sided.some((c) => !c.forced && c.direction === lean) ? sided : candidates
+  // The opening judges the whole period: a text leaning against that judgement, with something to say on its side,
+  // opens without one.
+  const against = lean !== 0 && bandDirection(band) === -lean && restricted.some((c) => c.direction === lean)
   sentences.push(variantsOf(against ? neutralOpenings : openings[band])[0])
 
   const closing = (first?: Candidate): string[] => {
+    // An encouraging text speaks mostly of what is to improve: "keep it up" would not fit after it.
+    if (tone === 'encouraging' && bandDirection(band) > 0) return encouragements.average
     if (!advising) return encouragements[band]
     if (first?.conclusions) return first.conclusions
     return advised ? bank[advised].advice! : conclusions[band]
   }
   const shortest = (variants: string[]) => Math.min(...variantsOf(variants).map((t) => t.length))
+  // Room is kept for the conclusion once the text has a body, and from the start when it is the encouragement.
   const place = (candidate: Candidate, required: boolean) => {
     const first = body[0]
-    const reserve = first ? shortest(closing(first)) + 1 : 0
+    const reserve = first || !advising ? shortest(closing(first)) + 1 : 0
     const text = fits(candidate.variants, maxLength - reserve) ?? (first && !required ? undefined : fits(candidate.variants, maxLength))
     if (!text) return false
     body.push(candidate)
@@ -191,22 +207,26 @@ export function generate(levels: Levels, options: GenerateOptions): string {
     return true
   }
 
-  // The maximum length is what the teacher wants to fill. Highlighted criteria are placed first. Then, among the
-  // sentences of the same rank, one about a category not spoken of yet comes before a second one in a category; in the
-  // balanced tone, a point the other way than the assessment is kept once the main points are said. The sentences are
-  // then read in the order of a report (results, work, attitude), and the conclusion closes the text when it fits.
+  // The maximum length is what the teacher wants to fill. Highlighted criteria are placed first, then the nuance the
+  // tone calls for, so that it is there even in a short text, then the other sentences by rank; among the sentences
+  // of the same rank, one about a category not spoken of yet comes before a second one in a category. The sentences
+  // are read in the order of a report (results, work, attitude), and the conclusion closes the text when it fits.
   const pool = shuffle(restricted, random).sort((a, b) => a.rank - b.rank)
   for (const candidate of pool.filter((c) => c.forced)) place(candidate, true)
   let remaining = pool.filter((c) => !c.forced)
+  const makesNuance = (c: Candidate) => c.nuance || c.direction === needed
+  // In a demanding text, the advice of the conclusion is a point to improve: it makes the nuance on its own.
+  const conclusionNuances = needed === -1 && advising && advised !== undefined
+  if (needed !== 0 && !conclusionNuances && !body.some(makesNuance)) {
+    const nuancing = remaining.find(makesNuance)
+    if (nuancing && place(nuancing, true)) remaining = remaining.filter((c) => c !== nuancing)
+  }
+  // Leaning one way, the text has one nuance at most: the rest is said on its side.
+  if (oneSided && restricted !== candidates) remaining = remaining.filter((c) => c.direction === lean)
   const spoken = () => new Set(body.flatMap((c) => c.categories))
-  const nuanced = () => lean === 0 || body.some((c) => c.direction === -lean)
   while (remaining.length > 0) {
     const news = (c: Candidate) => c.categories.some((category) => !spoken().has(category))
-    const counterpoint = tone === 'balanced' && body.length >= 2 && !nuanced()
-    const next =
-      (counterpoint && remaining.find((c) => c.direction === -lean)) ||
-      remaining.find((c) => c.rank === remaining[0].rank && news(c)) ||
-      remaining[0]
+    const next = remaining.find((c) => c.rank === remaining[0].rank && news(c)) || remaining[0]
     remaining = remaining.filter((c) => c !== next)
     place(next, false)
   }

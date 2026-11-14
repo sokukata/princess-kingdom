@@ -95,26 +95,197 @@
   color: var(--gold);
 }
 
+/* The hint box: above the criterion name, shown on hover and on the row that has the keyboard focus. */
+.criterion-name {
+  position: relative;
+  cursor: help;
+  text-decoration: underline dotted var(--border);
+  text-underline-offset: 3px;
+}
+
+.criterion-hint {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: 260px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: #fff;
+  text-decoration: none;
+  white-space: normal;
+  pointer-events: none;
+  visibility: hidden;
+  background: var(--plum);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.criterion-hint::after {
+  position: absolute;
+  top: 100%;
+  left: 14px;
+  content: '';
+  border: 6px solid transparent;
+  border-top-color: var(--plum);
+}
+
+.criterion-name:hover .criterion-hint,
+.criterion.focused:focus-within .criterion-hint {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* The tone slider: a track from green (praising) to red (severe) with five notches, and a single thumb. The first and
+   last stops of a range input sit at the centre of the thumb at each end. Each notch label is as wide as the space
+   between two stops, centred on its stop; the slider is inset from the panel by half a label plus a margin, so that
+   the outer labels stay inside the panel. Solving for the width W of .tones: label = (W - 2 inset - thumb) / 4 and
+   inset = label / 2 - thumb / 2 + gap give label = (W - 2 gap) / 5. */
 .tones {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  margin-top: 10px;
+  --thumb: 20px;
+  --gap: 8px;
+  --track: linear-gradient(90deg, #3f9a5c, #9ccb5b 25%, #e8c547 50%, #e98a3f 75%, var(--danger));
+
+  margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
 }
 
+.tone-slider,
+.tone-notches {
+  width: calc(100% - 2 * var(--gap) - (100% - 2 * var(--gap)) / 5 + var(--thumb));
+  margin-right: auto;
+  margin-left: auto;
+}
+
 .tones-label {
-  margin-right: 4px;
+  display: block;
+  margin-bottom: 8px;
   font-size: 0.85rem;
-  font-weight: 600;
   color: var(--muted);
 }
 
-.tones .chip {
-  padding: 2px 9px;
-  font-size: 0.85rem;
+.tones-label strong {
+  color: var(--plum);
+}
+
+.tone-slider {
+  display: block;
+  height: var(--thumb);
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  appearance: none;
+}
+
+.tone-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  background: var(--track);
+  border-radius: 999px;
+}
+
+.tone-slider::-moz-range-track {
+  height: 6px;
+  background: var(--track);
+  border-radius: 999px;
+}
+
+.tone-slider::-webkit-slider-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc(3px - var(--thumb) / 2);
+  background: var(--panel);
+  border: 3px solid var(--plum);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(74 31 94 / 35%);
+  appearance: none;
+}
+
+.tone-slider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  background: var(--panel);
+  border: 3px solid var(--plum);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(74 31 94 / 35%);
+}
+
+.tone-slider:focus-visible {
+  outline: none;
+}
+
+.tone-slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.tone-slider:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Each label is centred on its stop: the stops are spread over the slider width minus a thumb, and each label sits on
+   a zero-width anchor at its stop, overflowing evenly on both sides (into the inset at both ends). */
+.tone-notches {
+  position: relative;
+  height: 3.4rem; /* the icon and up to two lines of label */
+  margin-top: 6px;
+}
+
+.tone-notch {
+  position: absolute;
+  top: 0;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--i) / 4);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: center;
+  width: calc((100% - var(--thumb)) / 4); /* the space between two stops: % of the row of notches */
+  min-width: 0;
+  padding: 2px 0;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--muted);
+  text-align: center;
+  background: none;
+  border: none;
+}
+
+.tone-notch:hover:not(:disabled) {
+  color: var(--plum);
+  border: none;
+}
+
+.tone-notch .tone-icon {
+  font-size: 1rem;
+  opacity: 0.55;
+}
+
+.tone-notch .tone-name {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.tone-notch.current {
+  font-weight: 700;
+  color: var(--plum);
+}
+
+.tone-notch.current .tone-icon {
+  opacity: 1;
+}
+
+.tones.disabled .tone-slider,
+.tones.disabled .tone-notches {
+  opacity: 0.45;
 }
 
 .levels {
