@@ -34,7 +34,8 @@ function SeatingEditor({ roster }: { roster: ClassRoster }) {
   const { problem, warnings, blocking } = useMemo(() => compile(roster.students, config), [roster.students, config])
   const assignment = useMemo(() => current && fromSeating(problem, current), [problem, current])
   const issues = useMemo(() => (assignment ? explain(problem, assignment) : []), [problem, assignment])
-  const unplaced = assignment ? roster.students.filter((_, x) => assignment.seatOf[x] < 0) : []
+  // Students and AESH: an AESH ticked after the plan was generated has no seat yet.
+  const unplaced = assignment ? problem.students.filter((_, x) => assignment.seatOf[x] < 0) : []
   const validated = current !== undefined && JSON.stringify(config.history.at(-1)?.seating) === JSON.stringify(current)
 
   const generate = () => {

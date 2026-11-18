@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { Student } from '../../../shared/classes/model.ts'
 import { backness, compile, type Problem } from './compile.ts'
 import { makeConfig, makeRoom, makeStudents, randomSeating, realisticClass } from './fixtures.ts'
-import type { SeatingConfig } from './model.ts'
-import { aeshAisle, buildSeats, parseSeatKey, range, type Seat } from './room.ts'
+import { aeshSeatId, type SeatingConfig } from './model.ts'
+import { buildSeats, parseSeatKey, range } from './room.ts'
 import { cost, emptyAssignment, explain, moveDelta, place, toSeating } from './score.ts'
 import { solve } from './solver.ts'
 
@@ -56,21 +56,20 @@ describe('solve', () => {
     }
   })
 
-  // With a single aisle per row and no spare seat, two AESH can only trade rows by two swaps at once, each of them
-  // alone costing an aisle: the solver misses such plans for some seeds, so that room has one AESH.
   it.each([
-    ['2 rows × 2 tables, 7 students', makeRoom(2, 2), 7, ['s0', 's4']],
-    ['4 rows × 1 table, 6 students', makeRoom(4, 1), 6, ['s0', 's4']],
+    ['2 rows × 2 tables, 7 students', makeRoom(2, 2), 7, []],
+    ['2 rows × 2 tables, 6 students and an AESH', makeRoom(2, 2), 6, ['s4']],
+    ['4 rows × 1 table, 5 students and two AESH', makeRoom(4, 1), 5, ['s0', 's4']],
     [
-      '2 rows × 2 tables with a single desk, 7 students',
+      '2 rows × 2 tables with a single desk, 6 students and an AESH',
       { ...makeRoom(2, 2), disabledSeats: ['0-1-1'] },
-      7,
-      ['s0', 's4'],
+      6,
+      ['s4'],
     ],
-    ['4 rows × 2 single desks, 7 students', { ...makeRoom(4, 2), seatsPerTable: 1 as const }, 7, ['s4']],
+    ['4 rows × 2 single desks, 6 students and an AESH', { ...makeRoom(4, 2), seatsPerTable: 1 as const }, 6, ['s4']],
   ])('finds the brute-force optimum on %s', (_, room, count, aesh) => {
     const students = makeStudents(count)
-    const spareSeat = buildSeats(room).length > count
+    const spareSeat = buildSeats(room).length > count + aesh.length
     const config = makeConfig({
       room,
       front: ['s2', 's5'],
@@ -218,42 +217,52 @@ describe('solve', () => {
   })
 
   describe('with AESH', () => {
-    const aeshSeats = (problem: Problem, a: ReturnType<typeof solve>, ids: string[]) =>
-      ids.map((id) => problem.seats[a.seatOf[problem.studentIndex.get(id)!]])
-    const aisleKey = (seat: Seat, room: SeatingConfig['room']) => `${seat.row}:${aeshAisle(seat, room)}`
+    const seatOf = (problem: Problem, a: ReturnType<typeof solve>, id: string) =>
+      problem.seats[a.seatOf[problem.studentIndex.get(id)!]]
 
-    it('keeps their students off the walls, one AESH per aisle of a row, even all in front', () => {
+    it('seats each AESH at her student’s table, even with the students in front and the rotation', () => {
+      const students = makeStudents(24)
       const room = makeRoom(5, 3)
       const ids = ['s0', 's3', 's5', 's8']
       const aesh = Object.fromEntries(ids.map((id) => [id, '']))
+      const history = [{ date: '2026-09-01', seating: randomSeating(students, room, 2) }]
       for (let seed = 1; seed <= 5; seed++) {
-        const { problem, a, issues } = solved(makeStudents(24), makeConfig({ room, front: ids, aesh }), seed)
-        expect(issues).toEqual([])
-        const seats = aeshSeats(problem, a, ids)
-        for (const seat of seats) expect(problem.aisle[problem.seatIndex.get(seat.key)!]).toBeGreaterThan(0)
-        expect(new Set(seats.map((seat) => aisleKey(seat, room))).size).toBe(ids.length)
+        const config = makeConfig({ room, front: ids, aesh, rotateFrontBack: true, avoidPreviousNeighbours: true, history })
+        const { problem, a, issues } = solved(students, config, seed)
+        expect(issues, JSON.stringify(issues)).toEqual([])
+        for (const id of ids) {
+          const [student, helper] = [seatOf(problem, a, id), seatOf(problem, a, aeshSeatId(id))]
+          expect([helper.row, helper.table], id).toEqual([student.row, student.table])
+          expect(student.row, id).toBeLessThanOrEqual(1)
+        }
       }
     })
 
-    it('spreads them over the aisles between single desks', () => {
-      const room = { ...makeRoom(4, 4), seatsPerTable: 1 as const }
-      const ids = ['s0', 's1', 's2', 's3', 's4', 's5']
+    it('seats each AESH at the single desk right next to her student', () => {
+      const room = { ...makeRoom(4, 5), seatsPerTable: 1 as const }
+      const ids = ['s0', 's1', 's2', 's3']
       const aesh = Object.fromEntries(ids.map((id) => [id, '']))
-      const { problem, a, issues } = solved(makeStudents(14), makeConfig({ room, front: ids, aesh }))
+      for (let seed = 1; seed <= 5; seed++) {
+        const { problem, a, issues } = solved(makeStudents(14), makeConfig({ room, front: ids, aesh }), seed)
+        expect(issues, JSON.stringify(issues)).toEqual([])
+        for (const id of ids) {
+          const [student, helper] = [seatOf(problem, a, id), seatOf(problem, a, aeshSeatId(id))]
+          expect(helper.row, id).toBe(student.row)
+          expect(Math.abs(helper.table - student.table), id).toBe(1)
+        }
+      }
+    })
+
+    it('lets a followed student sit against a wall', () => {
+      const room = { ...makeRoom(1, 2), seatsPerTable: 1 as const }
+      const { issues } = solved(makeStudents(1), makeConfig({ room, aesh: { s0: 'Mme Roy' } }))
       expect(issues).toEqual([])
-      expect(new Set(aeshSeats(problem, a, ids).map((seat) => aisleKey(seat, room))).size).toBe(ids.length)
     })
 
-    it('rather shares an aisle than leaves a student against the wall', () => {
-      const { issues } = solved(makeStudents(2), makeConfig({ room: makeRoom(1, 2), aesh: { s0: '', s1: '' } }))
-      expect(issues.map((issue) => issue.message)).toEqual([
-        'Les AESH de Élève 0 et Élève 1 seraient dans la même allée',
-      ])
-    })
-
-    it('says when a student can only sit against the wall', () => {
-      const { issues } = solved(makeStudents(3), makeConfig({ room: makeRoom(2, 1), aesh: { s1: '' } }))
-      expect(issues.map((issue) => issue.message)).toEqual(['Élève 1 est contre le mur : pas de place pour son AESH'])
+    it('says when an AESH cannot sit next to her student', () => {
+      const room = { ...makeRoom(2, 1), seatsPerTable: 1 as const }
+      const { issues } = solved(makeStudents(1), makeConfig({ room, aesh: { s0: '' } }))
+      expect(issues.map((issue) => issue.message)).toEqual(['Élève 0 et son AESH ne sont pas côte à côte'])
     })
   })
 })

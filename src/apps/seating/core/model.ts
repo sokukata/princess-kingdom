@@ -14,7 +14,13 @@ export type Rule =
   | { kind: 'separate'; ids: StudentId[] }
   | { kind: 'together'; ids: [StudentId, StudentId] }
 
+// A seat holds a student, or the AESH of a student, under the id `aesh:<student id>`.
 export type Seating = Record<SeatKey, StudentId>
+
+export const aeshSeatId = (studentId: StudentId) => `aesh:${studentId}`
+
+// The student an AESH seat id stands for, or undefined for a student's id.
+export const aeshStudentOf = (id: StudentId) => (id.startsWith('aesh:') ? id.slice('aesh:'.length) : undefined)
 
 export interface SeatingConfig {
   room: Room

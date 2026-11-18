@@ -1,5 +1,5 @@
 import type { StudentId } from '../../../shared/classes/model.ts'
-import { backCost, frontCost, mixCost, rotationCost, WEIGHTS, type Problem } from './compile.ts'
+import { backCost, frontCost, mixCost, rotationCost, type Problem } from './compile.ts'
 import type { Seating } from './model.ts'
 import type { Seat } from './room.ts'
 
@@ -112,7 +112,7 @@ export function cost(p: Problem, a: Assignment): number {
 }
 
 export interface Issue {
-  kind: 'front' | 'back' | 'rotation' | 'separate' | 'together' | 'aeshWall' | 'aeshAisle' | 'mix' | 'previous'
+  kind: 'front' | 'back' | 'rotation' | 'separate' | 'together' | 'aesh' | 'mix' | 'previous'
   message: string
   points: number
   students: StudentId[]
@@ -138,9 +138,6 @@ export function explain(p: Problem, a: Assignment): Issue[] {
       `${name(x)} était au fond au dernier plan et se retrouve au rang ${row + 1}`,
       x,
     )
-    if (p.aesh[x] && p.aisle[seat] < 0) {
-      add('aeshWall', WEIGHTS.aeshWall, `${name(x)} est contre le mur : pas de place pour son AESH`, x)
-    }
     for (const { other, kind } of p.pairs[x]) {
       const otherSeat = a.seatOf[other]
       if (other < x || otherSeat < 0) continue
@@ -148,7 +145,8 @@ export function explain(p: Problem, a: Assignment): Issue[] {
       const pair = `${name(x)} et ${name(other)}`
       if (kind === 'separate') add(kind, points, `${pair} (à séparer) ${gap(p.seats[seat], p.seats[otherSeat])}`, x, other)
       else if (kind === 'together') add(kind, points, `${pair} (binôme) ne sont pas côte à côte`, x, other)
-      else add('aeshAisle', points, `Les AESH de ${pair} seraient dans la même allée`, x, other)
+      // The student comes before her AESH among the occupants.
+      else add(kind, points, `${name(x)} et son AESH ne sont pas côte à côte`, x, other)
     }
   }
   for (let table = 0; table < p.tableSeats.length; table++) {

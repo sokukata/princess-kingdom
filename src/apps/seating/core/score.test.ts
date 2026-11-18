@@ -2,15 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { mulberry32 } from '../../../shared/random.ts'
 import { compile, fillCost } from './compile.ts'
 import { randomSeating, realisticClass } from './fixtures.ts'
-import type { Seating } from './model.ts'
+import { aeshSeatId, type Seating } from './model.ts'
+import { buildSeats } from './room.ts'
 import { applyMove, cost, explain, fromSeating, moveDelta, toSeating } from './score.ts'
 
-// Moves each student to its target seat, swapping with its occupant, on a full plan.
+// Moves each student to its target seat, swapping with its occupant, if any.
 function seatAt(seating: Seating, moves: [string, string][]): Seating {
   const result = { ...seating }
   for (const [id, target] of moves) {
     const from = Object.keys(result).find((key) => result[key] === id)!
-    result[from] = result[target]
+    if (result[target] === undefined) delete result[from]
+    else result[from] = result[target]
     result[target] = id
   }
   return result
@@ -18,27 +20,30 @@ function seatAt(seating: Seating, moves: [string, string][]): Seating {
 
 // Seats two tablemates of the last validated plan together again at the first table.
 function withPreviousTablemates(seating: Seating, last: Seating): Seating {
-  const left = Object.keys(last).find((key) => key.endsWith('-0') && last[key.slice(0, -1) + '1'])!
+  const seated = new Set(Object.values(seating))
+  const right = (key: string) => key.slice(0, -1) + '1'
+  const left = Object.keys(last).find((key) => key.endsWith('-0') && seated.has(last[key]) && seated.has(last[right(key)]))!
   return seatAt(seating, [
     [last[left], '0-0-0'],
-    [last[left.slice(0, -1) + '1'], '0-0-1'],
+    [last[right(left)], '0-0-1'],
   ])
 }
 
 describe('score', () => {
-  const { students, config } = realisticClass()
+  // 29 students and 3 AESH in the 32 seats left.
+  const { config } = realisticClass()
+  const students = realisticClass().students.slice(0, 29)
   config.room.disabledSeats = ['1-1-0', '3-2-1', '5-0-0', '5-0-1'] // two single desks, one table removed
   config.aesh = { s20: '', s23: 'Mme Roy', s24: '' }
   const { problem } = compile(students, config)
-  // One student with an AESH against the wall, two AESH in the same aisle.
-  const seating = seatAt(
-    withPreviousTablemates(randomSeating(students, config.room, 7), config.history.at(-1)!.seating),
-    [
-      ['s20', '2-0-0'],
-      ['s23', '3-0-1'],
-      ['s24', '3-1-0'],
-    ],
-  )
+  const pupils = withPreviousTablemates(randomSeating(students, config.room, 7), config.history.at(-1)!.seating)
+  const free = buildSeats(config.room)
+    .map((seat) => seat.key)
+    .filter((key) => !(key in pupils))
+  const seating: Seating = {
+    ...pupils,
+    ...Object.fromEntries(['s20', 's23', 's24'].map((id, i) => [free[i], aeshSeatId(id)])),
+  }
 
   it('computes the same cost change incrementally as from scratch', () => {
     const a = fromSeating(problem, seating)
@@ -66,9 +71,10 @@ describe('score', () => {
   it('adds up to the explained points plus the fill cost', () => {
     const a = fromSeating(problem, seating)
     const issues = explain(problem, a)
-    const fill = students.reduce((sum, _, x) => sum + fillCost(problem.seats[a.seatOf[x]].row), 0)
+    const fill = problem.students.reduce((sum, _, x) => sum + fillCost(problem.seats[a.seatOf[x]].row), 0)
+    expect([...a.seatOf].every((seat) => seat >= 0)).toBe(true)
     expect(new Set(issues.map((issue) => issue.kind))).toEqual(
-      new Set(['front', 'rotation', 'separate', 'together', 'aeshWall', 'aeshAisle', 'mix', 'previous']),
+      new Set(['front', 'rotation', 'separate', 'together', 'aesh', 'mix', 'previous']),
     )
     expect(cost(problem, a)).toBeCloseTo(issues.reduce((sum, issue) => sum + issue.points, 0) + fill, 9)
   })

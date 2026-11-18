@@ -855,39 +855,18 @@ td.genders .chip {
   opacity: 1;
 }
 
-/* Aisles wide enough for two AESH, when the rule cannot be kept, and room for one beyond the last table. */
-.plan.with-aesh {
-  --aesh-size: 28px;
-}
-
-.plan.with-aesh .plan-row {
-  gap: calc(2 * var(--aesh-size) + 6px);
-  padding-right: var(--aesh-size);
-}
-
-.aesh-square {
-  position: absolute;
-  top: 50%;
-  display: grid;
-  place-items: center;
-  width: var(--aesh-size);
-  height: var(--aesh-size);
-  font-size: 0.5rem;
-  font-weight: 700;
+/* The seat of an AESH, next to her student. */
+.seat.aesh {
+  font-style: italic;
   color: var(--plum);
-  cursor: help;
   background: var(--accent-soft);
-  border: 2px solid var(--plum);
-  border-radius: 5px;
-  transform: translateY(-50%);
+  outline: 1px dashed var(--plum);
+  outline-offset: -3px;
 }
 
-.aesh-square.left {
-  right: 100%;
-}
-
-.aesh-square.right {
-  left: 100%;
+.seat.aesh.pinned {
+  outline: 2px solid var(--gold);
+  outline-offset: 0;
 }
 
 .issues ul {
@@ -1001,10 +980,10 @@ td.genders .chip {
     gap: 3%;
   }
 
-  .aesh-square {
+  .seat.aesh {
     color: #000;
     background: #fff;
-    border-color: #000;
+    outline-color: #000;
   }
 
   .desk-slot {
@@ -1038,5 +1017,10 @@ td.genders .chip {
   .seat.pinned {
     background: #fff;
     outline: none;
+  }
+
+  .seat.aesh.pinned {
+    outline: 1px dashed #000;
+    outline-offset: -3px;
   }
 }

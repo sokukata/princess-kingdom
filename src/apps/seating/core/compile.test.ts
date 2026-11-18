@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { backCost, backness, compile, frontCost, separationCost, togetherCost, WEIGHTS } from './compile.ts'
 import { makeConfig, makeRoom, makeStudents } from './fixtures.ts'
+import type { Room } from './model.ts'
 import { buildSeats, type Seat } from './room.ts'
 
 describe('separation cost', () => {
@@ -140,37 +141,81 @@ describe('compile', () => {
       }),
     )
     expect(warnings).toEqual([])
-    expect(problem.pairs).toEqual([[{ other: 1, kind: 'separate' }], [{ other: 0, kind: 'separate' }], []])
-    expect([...problem.pinned]).toEqual([-1, -1, -1])
+    // s0 keeps its AESH, the fourth occupant; the AESH of the removed student is gone.
+    expect(problem.students.map((s) => s.id)).toEqual(['s0', 's1', 's2', 'aesh:s0'])
+    expect(problem.pairs).toEqual([
+      [
+        { other: 1, kind: 'separate' },
+        { other: 3, kind: 'aesh' },
+      ],
+      [{ other: 0, kind: 'separate' }],
+      [],
+      [{ other: 0, kind: 'aesh' }],
+    ])
+    expect([...problem.pinned]).toEqual([-1, -1, -1, -1])
     expect([...problem.previousTablemates].every((weight) => weight === 0)).toBe(true)
   })
 
-  it('keeps a student with an AESH off the walls, and two AESH out of the same aisle of a row', () => {
-    const config = makeConfig({ room: makeRoom(2, 3), aesh: { s0: '', s1: 'Mme Roy' } })
+  it('seats each AESH as an occupant bound to her student, with none of the students’ rules', () => {
+    const config = makeConfig({ room: makeRoom(2, 3), front: ['s0'], aesh: { s0: '', s1: 'Mme Roy' } })
     const { problem, warnings } = compile(makeStudents(3), config)
-    const S = problem.seats.length
-    const seat = (key: string) => problem.seatIndex.get(key)!
-    const unary = (x: number, key: string) => problem.unary[x * S + seat(key)]
-    const aesh = (a: string, b: string) => problem.kernels.aesh[seat(a) * S + seat(b)]
     expect(warnings).toEqual([])
-    expect(problem.aesh).toEqual([true, true, false])
-    expect(problem.pairs).toEqual([[{ other: 1, kind: 'aesh' }], [{ other: 0, kind: 'aesh' }], []])
-    expect(unary(0, '0-0-0') - unary(2, '0-0-0')).toBe(WEIGHTS.aeshWall) // left wall
-    expect(unary(0, '1-2-1') - unary(2, '1-2-1')).toBe(WEIGHTS.aeshWall) // right wall
-    expect(unary(0, '0-0-1')).toBe(unary(2, '0-0-1'))
-    expect(aesh('0-0-1', '0-1-0')).toBe(WEIGHTS.aeshAisle) // both in aisle 1
-    expect(aesh('0-1-1', '0-2-0')).toBe(WEIGHTS.aeshAisle) // both in aisle 2
-    expect(aesh('0-0-1', '0-1-1')).toBe(0)
-    expect(aesh('0-0-1', '1-1-0')).toBe(0) // another row
-    expect(aesh('0-0-0', '0-0-0')).toBe(0) // the wall is no aisle
+    expect(problem.pupils).toBe(3)
+    expect(problem.students.map((s) => [s.id, s.name])).toEqual([
+      ['s0', 'Élève 0'],
+      ['s1', 'Élève 1'],
+      ['s2', 'Élève 2'],
+      ['aesh:s0', "l'AESH de Élève 0"],
+      ['aesh:s1', "l'AESH de Élève 1"],
+    ])
+    expect(problem.pairs[0]).toEqual([{ other: 3, kind: 'aesh' }])
+    expect(problem.pairs[4]).toEqual([{ other: 1, kind: 'aesh' }])
+    expect(problem.front).toEqual([true, false, false, false, false])
   })
 
-  it('warns when no seat gives onto an aisle, only with an AESH', () => {
-    const warning = "Aucune place ne donne sur une allée : les AESH n'ont pas de place à côté de leur élève."
-    expect(compile(makeStudents(4), makeConfig({ room: makeRoom(3, 1), aesh: { s0: '' } })).warnings).toEqual([warning])
-    expect(compile(makeStudents(4), makeConfig({ room: makeRoom(3, 1) })).warnings).toEqual([])
-    const singles = { ...makeRoom(3, 2), seatsPerTable: 1 as const }
-    expect(compile(makeStudents(4), makeConfig({ room: singles, aesh: { s0: '' } })).warnings).toEqual([])
+  it('wants the AESH at her student’s table, or at the single desk right next to it', () => {
+    const at = (room: Room) => {
+      const { problem } = compile(makeStudents(1), makeConfig({ room }))
+      const S = problem.seats.length
+      return (a: string, b: string) => problem.kernels.aesh[problem.seatIndex.get(a)! * S + problem.seatIndex.get(b)!]
+    }
+    const pairs = at(makeRoom(2, 3))
+    expect(pairs('0-1-0', '0-1-1')).toBe(0) // same table
+    expect(pairs('0-1-1', '0-2-0')).toBe(WEIGHTS.aesh) // neighbouring tables of two
+    expect(pairs('0-1-0', '1-1-0')).toBe(WEIGHTS.aesh) // just behind
+    const singles = at({ ...makeRoom(2, 3), seatsPerTable: 1 })
+    expect(singles('0-1-0', '0-0-0')).toBe(0) // left
+    expect(singles('0-1-0', '0-2-0')).toBe(0) // right
+    expect(singles('0-0-0', '0-2-0')).toBe(WEIGHTS.aesh) // two desks apart
+    expect(singles('0-1-0', '1-1-0')).toBe(WEIGHTS.aesh) // behind
+    expect(singles('0-1-0', '1-0-0')).toBe(WEIGHTS.aesh) // diagonal
+    // A single desk in a room of tables of two: its neighbour in the row.
+    const mixed = at({ ...makeRoom(1, 3), disabledSeats: ['0-1-1'] })
+    expect(mixed('0-1-0', '0-0-1')).toBe(0)
+    expect(mixed('0-1-0', '0-2-0')).toBe(0)
+  })
+
+  it('counts the AESH in the seats', () => {
+    const room = makeRoom(1, 3)
+    expect(compile(makeStudents(5), makeConfig({ room, aesh: { s0: '' } })).blocking).toBeUndefined()
+    expect(compile(makeStudents(5), makeConfig({ room, aesh: { s0: '', s1: '' } })).blocking).toBe(
+      'Pas assez de places : 5 élèves et 2 AESH pour 6 places.',
+    )
+  })
+
+  it('leaves the AESH out of the rotation and of the previous tablemates', () => {
+    const seating = { '4-0-0': 's0', '4-0-1': 'aesh:s0', '0-0-0': 's1', '0-0-1': 's2' }
+    const config = makeConfig({
+      aesh: { s0: '' },
+      rotateFrontBack: true,
+      avoidPreviousNeighbours: true,
+      history: [{ date: '2026-09-01', seating }],
+    })
+    const { problem } = compile(makeStudents(3), config)
+    const N = problem.students.length
+    expect([...problem.previousBackness]).toEqual([1, 0, 0, 0])
+    expect(problem.previousTablemates[3]).toBe(0) // s0 and her AESH
+    expect(problem.previousTablemates[1 * N + 2]).toBe(WEIGHTS.previous[0])
   })
 
   it('reads a configuration saved before the AESH', () => {
@@ -178,7 +223,7 @@ describe('compile', () => {
     delete config.aesh
     const { problem, warnings } = compile(makeStudents(4), config)
     expect(warnings).toEqual([])
-    expect(problem.aesh).toEqual([false, false, false, false])
+    expect(problem.students).toHaveLength(4)
     expect(problem.pairs.flat()).toEqual([])
   })
 })

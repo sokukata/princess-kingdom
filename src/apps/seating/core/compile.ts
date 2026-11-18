@@ -1,18 +1,17 @@
 import type { Student, StudentId } from '../../../shared/classes/model.ts'
-import type { Room, SeatKey, SeatingConfig } from './model.ts'
-import { aeshAisle, buildSeats, parseSeatKey, range, tableKey, type Seat } from './room.ts'
+import { aeshSeatId, type Room, type SeatKey, type SeatingConfig } from './model.ts'
+import { buildSeats, parseSeatKey, tableKey, type Seat } from './room.ts'
 
 // Starting values, checked by the solver tests.
 export const WEIGHTS = {
   front: 30, // × (rows behind the second one)², row 0 being next to the board
   back: 30, // × (rows in front of the second-to-last one)²
   together: 50,
+  aesh: 400, // an AESH not next to her student: above every other rule
   mix: 8,
   previous: [15, 10, 5], // tablemates in the last, second-to-last and third-to-last validated plans
   rotation: 30,
-  fill: 1, // × row, for every student: empty seats go to the back
-  aeshWall: 200, // a student with an AESH against a wall, where she has no room
-  aeshAisle: 80, // two AESH in the same aisle of a row
+  fill: 1, // × row, for every occupant: empty seats go to the back
 }
 
 // Position across the room, from 0 (left wall) to 1 (right wall).
@@ -70,16 +69,18 @@ export interface PairTerm {
   kind: 'separate' | 'together' | 'aesh'
 }
 
-// Students and seats are numbered by their index in `students` and `seats`.
+// Occupants and seats are numbered by their index in `students` and `seats`. The occupants are the students of the
+// class, then the AESH, each placed like a student and bound to hers by an 'aesh' pair.
 export interface Problem {
   seats: Seat[]
   tableSeats: number[][] // [table]: its one or two seats
   tableOf: Int32Array // [seat]: its table
   students: Student[]
+  pupils: number // the first occupants, the students of the class; the AESH come after
   rows: number
   seatIndex: Map<SeatKey, number>
   studentIndex: Map<StudentId, number>
-  unary: Float64Array // [student * seats + seat]: front, back, rotation, fill and AESH against a wall
+  unary: Float64Array // [student * seats + seat]: front, back, rotation and fill
   pairs: PairTerm[][] // [student]: each pair rule is listed for both students
   kernels: Record<PairTerm['kind'], Float64Array> // [seat * seats + seat]
   tablemate: Float64Array // [student * students + student]: mix and previous tablemates
@@ -87,8 +88,6 @@ export interface Problem {
   keptEmpty: Set<number> // seats left empty
   front: boolean[]
   back: boolean[]
-  aesh: boolean[]
-  aisle: Int32Array // [seat]: aisle of the AESH of its student, or -1 against a wall
   previousBackness: Float64Array // [student], 0 when the rotation is off
   previousTablemates: Float64Array // [student * students + student], 0 when the option is off
   mixGender: boolean
@@ -100,11 +99,18 @@ export interface Compiled {
   blocking?: string
 }
 
-export function compile(students: Student[], config: SeatingConfig): Compiled {
+export function compile(pupils: Student[], config: SeatingConfig): Compiled {
   const { room } = config
   const seats = buildSeats(room)
   const S = seats.length
+  const aeshNames = config.aesh ?? {}
+  const followed = pupils.filter((s) => aeshNames[s.id] !== undefined)
+  const students: Student[] = [
+    ...pupils,
+    ...followed.map((s) => ({ id: aeshSeatId(s.id), name: `l'AESH de ${s.name}` })),
+  ]
   const N = students.length
+  const isPupil = (x: number) => x < pupils.length
   const seatIndex = new Map(seats.map((seat, s) => [seat.key, s]))
   const studentIndex = new Map(students.map((student, x) => [student.id, x]))
   const warnings: string[] = []
@@ -132,10 +138,7 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
     if (rule.kind === 'separate') xs.forEach((x, i) => xs.slice(i + 1).forEach((y) => addPair('separate', x, y)))
     else if (xs.length === 2) addPair('together', xs[0], xs[1])
   }
-  const aeshIds = config.aesh ?? {}
-  const aesh = students.map((student) => aeshIds[student.id] !== undefined)
-  const withAesh = range(N).filter((x) => aesh[x])
-  withAesh.forEach((x, i) => withAesh.slice(i + 1).forEach((y) => addPair('aesh', x, y)))
+  for (const s of followed) addPair('aesh', studentIndex.get(s.id)!, studentIndex.get(aeshSeatId(s.id))!)
   for (const id of listed) {
     const [kind, x, y] = id.split(':')
     if (kind === 'separate' && listed.has(`together:${x}:${y}`)) {
@@ -143,13 +146,11 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
     }
   }
 
-  const aisle = Int32Array.from(seats, (seat) => {
-    const n = aeshAisle(seat, room)
-    return n > 0 && n < room.tablesPerRow ? n : -1
-  })
-  if (withAesh.length > 0 && aisle.every((n) => n < 0)) {
-    warnings.push("Aucune place ne donne sur une allée : les AESH n'ont pas de place à côté de leur élève.")
-  }
+  // The AESH shares her student's table, or takes the single desk right next to hers, in the same row.
+  const single = (s: number) => tableSeats[tableOf[s]].length === 1
+  const nextTo = (a: number, b: number) =>
+    tableOf[a] === tableOf[b] ||
+    (seats[a].row === seats[b].row && Math.abs(seats[a].table - seats[b].table) === 1 && (single(a) || single(b)))
 
   const kernels = {
     separate: new Float64Array(S * S),
@@ -160,17 +161,17 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
     for (let b = 0; b < S; b++) {
       kernels.separate[a * S + b] = separationCost(seats[a], seats[b], room)
       kernels.together[a * S + b] = togetherCost(seats[a], seats[b], room)
-      const sameAisle = seats[a].row === seats[b].row && aisle[a] >= 0 && aisle[a] === aisle[b]
-      kernels.aesh[a * S + b] = sameAisle ? WEIGHTS.aeshAisle : 0
+      kernels.aesh[a * S + b] = nextTo(a, b) ? 0 : WEIGHTS.aesh
     }
   }
 
+  // The rotation and the previous tablemates are about the students: the AESH follows hers.
   const previousBackness = new Float64Array(N)
   const last = config.history.at(-1)
   if (config.rotateFrontBack && last) {
     for (const [key, id] of Object.entries(last.seating)) {
       const x = studentIndex.get(id)
-      if (x !== undefined) previousBackness[x] = backness(parseSeatKey(key).row, room.rows)
+      if (x !== undefined && isPupil(x)) previousBackness[x] = backness(parseSeatKey(key).row, room.rows)
     }
   }
 
@@ -183,7 +184,7 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
         const byTable = new Map<string, number[]>()
         for (const [key, id] of Object.entries(seating)) {
           const x = studentIndex.get(id)
-          if (x === undefined) continue
+          if (x === undefined || !isPupil(x)) continue
           const { row, table } = parseSeatKey(key)
           const t = tableKey(row, table)
           byTable.set(t, [...(byTable.get(t) ?? []), x])
@@ -225,8 +226,7 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
         fillCost(row) +
         (front[x] ? frontCost(row) : 0) +
         (back[x] ? backCost(row, room.rows) : 0) +
-        rotationCost(previousBackness[x], row, room.rows) +
-        (aesh[x] && aisle[s] < 0 ? WEIGHTS.aeshWall : 0)
+        rotationCost(previousBackness[x], row, room.rows)
     }
   }
 
@@ -250,7 +250,7 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
   }
 
   const nameCounts = new Map<string, number>()
-  for (const { name } of students) nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1)
+  for (const { name } of pupils) nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1)
   for (const [name, count] of nameCounts) {
     if (count > 1) {
       warnings.push(
@@ -265,6 +265,7 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
       tableSeats,
       tableOf,
       students,
+      pupils: pupils.length,
       rows: room.rows,
       seatIndex,
       studentIndex,
@@ -276,16 +277,16 @@ export function compile(students: Student[], config: SeatingConfig): Compiled {
       keptEmpty,
       front,
       back,
-      aesh,
-      aisle,
       previousBackness,
       previousTablemates,
       mixGender: config.mixGender,
     },
     warnings,
-    blocking:
-      N > S - keptEmpty.size
-        ? `Pas assez de places : ${N} élèves pour ${S - keptEmpty.size} places${keptEmpty.size ? ` (${keptEmpty.size} gardées vides)` : ''}.`
-        : undefined,
+    blocking: N > S - keptEmpty.size ? lackOfSeats(pupils.length, followed.length, S, keptEmpty.size) : undefined,
   }
+}
+
+function lackOfSeats(pupils: number, aesh: number, seats: number, keptEmpty: number): string {
+  const who = `${pupils} élèves${aesh ? ` et ${aesh} AESH` : ''}`
+  return `Pas assez de places : ${who} pour ${seats - keptEmpty} places${keptEmpty ? ` (${keptEmpty} gardées vides)` : ''}.`
 }

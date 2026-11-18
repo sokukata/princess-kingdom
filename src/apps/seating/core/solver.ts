@@ -20,12 +20,12 @@ export function solve(p: Problem, { seed, restarts = 4, iterations = 200_000 }: 
   // Seats that never move: pinned students, and seats kept empty.
   const fixedSeats = new Set([...p.pinned.filter((seat) => seat >= 0), ...p.keptEmpty])
   const movable = range(p.seats.length).filter((seat) => !fixedSeats.has(seat))
-  const freeTables = p.tableSeats.filter((seats) => seats.length === 2 && !seats.some((seat) => fixedSeats.has(seat)))
+  const blocks = pairBlocks(p).filter((block) => !block.some((seat) => fixedSeats.has(seat)))
   let best = emptyAssignment(p)
   let bestCost = Infinity
   for (let r = 0; r < restarts; r++) {
     const a = randomStart(p, random)
-    anneal(p, a, movable, freeTables, iterations, random)
+    anneal(p, a, movable, blocks, iterations, random)
     descend(p, a, movable)
     const c = cost(p, a)
     if (c < bestCost) {
@@ -34,6 +34,19 @@ export function solve(p: Problem, { seed, restarts = 4, iterations = 200_000 }: 
     }
   }
   return best
+}
+
+// Pairs of seats that move together, so that two neighbours change places without being split: the two seats of a
+// table, and two single desks side by side in a row (a student and her AESH, a binôme).
+function pairBlocks(p: Problem): number[][] {
+  const blocks = p.tableSeats.filter((seats) => seats.length === 2)
+  p.tableSeats.forEach((seats, t) => {
+    const next = p.tableSeats[t + 1]
+    if (seats.length !== 1 || next?.length !== 1) return
+    const [a, b] = [p.seats[seats[0]], p.seats[next[0]]]
+    if (a.row === b.row && b.table === a.table + 1) blocks.push([seats[0], next[0]])
+  })
+  return blocks
 }
 
 function randomStart(p: Problem, random: () => number): Assignment {
@@ -56,7 +69,7 @@ function anneal(
   p: Problem,
   a: Assignment,
   movable: number[],
-  freeTables: number[][],
+  blocks: number[][],
   iterations: number,
   random: () => number,
 ): void {
@@ -68,14 +81,15 @@ function anneal(
     let s2: number
     let s3 = -1
     let s4 = -1
-    // Moving a whole table changes the row of two tablemates without splitting them.
-    if (freeTables.length > 1 && random() < TABLE_MOVE_RATE) {
-      const table1 = pick(freeTables)
-      const table2 = pick(freeTables)
-      s1 = table1[0]
-      s2 = table2[0]
-      s3 = table1[1]
-      s4 = table2[1]
+    // Moving a whole pair of seats changes the place of two neighbours without splitting them.
+    if (blocks.length > 1 && random() < TABLE_MOVE_RATE) {
+      const block1 = pick(blocks)
+      const block2 = pick(blocks)
+      if (block1.some((seat) => block2.includes(seat))) continue
+      s1 = block1[0]
+      s2 = block2[0]
+      s3 = block1[1]
+      s4 = block2[1]
     } else {
       s1 = pick(movable)
       s2 = pick(movable)
