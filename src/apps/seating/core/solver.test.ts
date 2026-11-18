@@ -130,13 +130,66 @@ describe('solve', () => {
     expect(plans.size).toBeGreaterThanOrEqual(8)
   })
 
-  it('seats each pair of the binômes at the same table', () => {
+  it('seats each pair of students meant to be together at the same table', () => {
     const rules = [
-      { kind: 'together' as const, ids: ['s0', 's1'] as [string, string] },
-      { kind: 'together' as const, ids: ['s2', 's3'] as [string, string] },
+      { kind: 'together' as const, ids: ['s0', 's1'] },
+      { kind: 'together' as const, ids: ['s2', 's3'] },
     ]
     const { issues } = solved(makeStudents(20), makeConfig({ rules }))
     expect(issues).toEqual([])
+  })
+
+  describe('when the same table is not possible', () => {
+    // Two students side by side at two neighbouring tables of the same row, across the aisle.
+    const sideBySide = (problem: Problem, a: ReturnType<typeof solve>, x: string, y: string) => {
+      const [s, t] = [x, y].map((id) => problem.seats[a.seatOf[problem.studentIndex.get(id)!]])
+      return s.row === t.row && Math.abs(2 * s.table + s.side - (2 * t.table + t.side)) === 1
+    }
+
+    it('seats the partner of a student with an AESH right next to their table', () => {
+      for (let seed = 1; seed <= 5; seed++) {
+        const config = makeConfig({ aesh: { s0: '' }, rules: [{ kind: 'together', ids: ['s0', 's1'] }] })
+        const { problem, a, issues } = solved(makeStudents(20), config, seed)
+        expect(sideBySide(problem, a, 's0', 's1'), JSON.stringify(issues)).toBe(true)
+        expect(issues.map((issue) => issue.points)).toEqual([6])
+      }
+    })
+
+    it('seats a student in two pairs with one at the table and the other right next to it', () => {
+      const rules = [
+        { kind: 'together' as const, ids: ['s0', 's1'] },
+        { kind: 'together' as const, ids: ['s0', 's2'] },
+      ]
+      for (let seed = 1; seed <= 5; seed++) {
+        const { problem, a, issues } = solved(makeStudents(20), makeConfig({ rules }), seed)
+        const atTable = ['s1', 's2'].filter((id) => problem.tableOf[a.seatOf[problem.studentIndex.get(id)!]] === problem.tableOf[a.seatOf[0]])
+        expect(atTable, JSON.stringify(issues)).toHaveLength(1)
+        expect(sideBySide(problem, a, 's0', ['s1', 's2'].find((id) => !atTable.includes(id))!)).toBe(true)
+      }
+    })
+
+    it('seats a group of three in one row, two at a table and the third right next to them', () => {
+      for (let seed = 1; seed <= 5; seed++) {
+        const config = makeConfig({ rules: [{ kind: 'together', ids: ['s0', 's1', 's2'] }] })
+        const { problem, a, issues } = solved(makeStudents(20), config, seed)
+        const seats = [0, 1, 2].map((x) => problem.seats[a.seatOf[x]])
+        expect(new Set(seats.map((s) => s.row)).size, JSON.stringify(issues)).toBe(1)
+        const columns = seats.map((s) => 2 * s.table + s.side).sort((p, q) => p - q)
+        expect(columns[2] - columns[0], JSON.stringify(seats)).toBe(2)
+      }
+    })
+
+    it('seats a group of four at two tables, one behind the other', () => {
+      for (let seed = 1; seed <= 3; seed++) {
+        const config = makeConfig({ rules: [{ kind: 'together', ids: ['s0', 's1', 's2', 's3'] }] })
+        const { problem, a, issues } = solved(makeStudents(20), config, seed)
+        const seats = [0, 1, 2, 3].map((x) => problem.seats[a.seatOf[x]])
+        const rows = seats.map((s) => s.row)
+        expect(new Set(seats.map((s) => s.table)).size, JSON.stringify(issues)).toBe(1)
+        expect(new Set(rows).size).toBe(2)
+        expect(Math.max(...rows) - Math.min(...rows)).toBe(1)
+      }
+    })
   })
 
   it('puts the front students in the first two rows when there is room', () => {
@@ -161,9 +214,9 @@ describe('solve', () => {
     expect([...a.seatOf].every((seat) => seat >= 0)).toBe(true)
   })
 
-  it('seats a binôme at neighbouring single desks of the same row', () => {
+  it('seats two students meant to be together at neighbouring single desks of the same row', () => {
     const room = { ...makeRoom(5, 4), seatsPerTable: 1 as const }
-    const rules = [{ kind: 'together' as const, ids: ['s0', 's1'] as [string, string] }]
+    const rules = [{ kind: 'together' as const, ids: ['s0', 's1'] }]
     const { problem, a, issues } = solved(makeStudents(16), makeConfig({ room, rules }))
     const [first, second] = [problem.seats[a.seatOf[0]], problem.seats[a.seatOf[1]]]
     expect(issues).toEqual([])
@@ -182,7 +235,7 @@ describe('solve', () => {
     expect(solved(students, config).issues).toEqual([])
   })
 
-  it('keeps a binôme together without counting them as previous tablemates', () => {
+  it('keeps students meant to be together without counting them as previous tablemates', () => {
     const students = makeStudents(10)
     const config = makeConfig({
       rules: [{ kind: 'together', ids: ['s0', 's1'] }],

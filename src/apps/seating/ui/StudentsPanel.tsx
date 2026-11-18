@@ -47,7 +47,7 @@ export function StudentsPanel({ students, config, update }: Props) {
       ...(placeOf(s.id) === 'back' ? [{ label: '🌹 Fond', tone: 'plum' as const }] : []),
       ...(aesh[s.id] !== undefined ? [{ label: '🧚 AESH', title: aesh[s.id] || undefined }] : []),
       ...(kinds.has('separate') ? [{ label: '⚔️', title: 'À séparer', tone: 'muted' as const }] : []),
-      ...(kinds.has('together') ? [{ label: '💞', title: 'Binôme', tone: 'muted' as const }] : []),
+      ...(kinds.has('together') ? [{ label: '💞', title: 'Ensemble', tone: 'muted' as const }] : []),
     ]
   }
 
@@ -106,11 +106,8 @@ export function StudentsPanel({ students, config, update }: Props) {
         <button disabled={ids.length < 2} onClick={run(() => addRule({ kind: 'separate', ids }))}>
           <span aria-hidden="true">⚔️ </span>À séparer
         </button>
-        <button
-          disabled={ids.length !== 2}
-          onClick={run(() => addRule({ kind: 'together', ids: [ids[0], ids[1]] }))}
-        >
-          <span aria-hidden="true">💞 </span>Binôme
+        <button disabled={ids.length < 2} onClick={run(() => addRule({ kind: 'together', ids }))}>
+          <span aria-hidden="true">💞 </span>Ensemble
         </button>
       </>
     )

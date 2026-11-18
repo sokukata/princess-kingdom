@@ -12,7 +12,7 @@ export interface Room {
 
 export type Rule =
   | { kind: 'separate'; ids: StudentId[] }
-  | { kind: 'together'; ids: [StudentId, StudentId] }
+  | { kind: 'together'; ids: StudentId[] } // 2 students or more, as close as possible
 
 // A seat holds a student, or the AESH of a student, under the id `aesh:<student id>`.
 export type Seating = Record<SeatKey, StudentId>

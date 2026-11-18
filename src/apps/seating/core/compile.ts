@@ -6,7 +6,7 @@ import { buildSeats, parseSeatKey, tableKey, type Seat } from './room.ts'
 export const WEIGHTS = {
   front: 30, // × (rows behind the second one)², row 0 being next to the board
   back: 30, // × (rows in front of the second-to-last one)²
-  together: 50,
+  together: 50, // at most, for two students meant to be together and far apart
   aesh: 400, // an AESH not next to her student: above every other rule
   mix: 8,
   previous: [15, 10, 5], // tablemates in the last, second-to-last and third-to-last validated plans
@@ -41,10 +41,19 @@ export function separationCost(a: Seat, b: Seat, room: Room): number {
   return near - (near - far) * Math.abs(across(a, room) - across(b, room))
 }
 
-// With single desks, a binôme sits at two neighbouring tables of the same row.
-export function togetherCost(a: Seat, b: Seat, room: Room): number {
-  const tableGap = room.seatsPerTable === 1 ? 1 : 0
-  return a.row === b.row && Math.abs(a.table - b.table) <= tableGap ? 0 : WEIGHTS.together
+// Two students meant to be together, not next to each other, in the teacher's order: the closest seat of the
+// neighbouring table, the table in front or behind (straight or diagonally), the other seat of the neighbouring table,
+// then diagonally at a neighbouring table, closest seat first; any further seat comes after. Columns count seats.
+// 6 + 22 < 16 + 16: a group of three stays in one row rather than one of them sitting behind.
+export function apartCost(a: Seat, b: Seat, room: Room): number {
+  const single = room.seatsPerTable === 1
+  const rows = Math.abs(a.row - b.row)
+  const tables = Math.abs(a.table - b.table)
+  const columns = single ? tables : Math.abs(2 * a.table + a.side - (2 * b.table + b.side))
+  if (rows === 0 && !single && columns <= 2) return columns === 1 ? 6 : 22
+  if (rows === 1 && tables === 0) return 16
+  if (rows === 1 && tables === 1 && columns <= 2) return columns === 1 ? 28 : 34
+  return Math.min(WEIGHTS.together, 34 + 3 * (rows + columns))
 }
 
 // The teacher counts the first two rows as the front, and the last two as the back.
@@ -135,18 +144,18 @@ export function compile(pupils: Student[], config: SeatingConfig): Compiled {
   }
   for (const rule of config.rules) {
     const xs = rule.ids.flatMap((id) => studentIndex.get(id) ?? [])
-    if (rule.kind === 'separate') xs.forEach((x, i) => xs.slice(i + 1).forEach((y) => addPair('separate', x, y)))
-    else if (xs.length === 2) addPair('together', xs[0], xs[1])
+    xs.forEach((x, i) => xs.slice(i + 1).forEach((y) => addPair(rule.kind, x, y)))
   }
   for (const s of followed) addPair('aesh', studentIndex.get(s.id)!, studentIndex.get(aeshSeatId(s.id))!)
   for (const id of listed) {
     const [kind, x, y] = id.split(':')
     if (kind === 'separate' && listed.has(`together:${x}:${y}`)) {
-      warnings.push(`${students[+x].name} et ${students[+y].name} sont à la fois à séparer et en binôme.`)
+      warnings.push(`${students[+x].name} et ${students[+y].name} sont à la fois « À séparer » et « Ensemble ».`)
     }
   }
 
-  // The AESH shares her student's table, or takes the single desk right next to hers, in the same row.
+  // Next to each other: at the same table, or at single desks side by side in a row. That is where an AESH sits, and
+  // what students meant to be together aim at.
   const single = (s: number) => tableSeats[tableOf[s]].length === 1
   const nextTo = (a: number, b: number) =>
     tableOf[a] === tableOf[b] ||
@@ -160,7 +169,7 @@ export function compile(pupils: Student[], config: SeatingConfig): Compiled {
   for (let a = 0; a < S; a++) {
     for (let b = 0; b < S; b++) {
       kernels.separate[a * S + b] = separationCost(seats[a], seats[b], room)
-      kernels.together[a * S + b] = togetherCost(seats[a], seats[b], room)
+      kernels.together[a * S + b] = nextTo(a, b) ? 0 : apartCost(seats[a], seats[b], room)
       kernels.aesh[a * S + b] = nextTo(a, b) ? 0 : WEIGHTS.aesh
     }
   }
@@ -190,7 +199,7 @@ export function compile(pupils: Student[], config: SeatingConfig): Compiled {
           byTable.set(t, [...(byTable.get(t) ?? []), x])
         }
         for (const [x, y] of byTable.values()) {
-          // A binôme is meant to stay together.
+          // Students meant to be together may stay together.
           if (y === undefined || listed.has(`together:${Math.min(x, y)}:${Math.max(x, y)}`)) continue
           previousTablemates[x * N + y] += WEIGHTS.previous[age]
           previousTablemates[y * N + x] += WEIGHTS.previous[age]

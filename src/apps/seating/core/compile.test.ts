@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backCost, backness, compile, frontCost, separationCost, togetherCost, WEIGHTS } from './compile.ts'
+import { backCost, backness, compile, frontCost, separationCost, WEIGHTS } from './compile.ts'
 import { makeConfig, makeRoom, makeStudents } from './fixtures.ts'
 import type { Room } from './model.ts'
 import { buildSeats, type Seat } from './room.ts'
@@ -43,16 +43,47 @@ describe('separation cost', () => {
   })
 })
 
-describe('togetherCost', () => {
-  it('wants the same table, or neighbouring single desks', () => {
-    const pairs = makeRoom(2, 3)
-    const singles = { ...pairs, seatsPerTable: 1 as const }
-    const seat = (row: number, table: number) => ({ key: '', row, table, side: 0 as const })
-    expect(togetherCost(seat(0, 1), seat(0, 1), pairs)).toBe(0)
-    expect(togetherCost(seat(0, 1), seat(0, 2), pairs)).toBe(50)
-    expect(togetherCost(seat(0, 1), seat(0, 2), singles)).toBe(0)
-    expect(togetherCost(seat(0, 0), seat(0, 2), singles)).toBe(50)
-    expect(togetherCost(seat(0, 1), seat(1, 1), singles)).toBe(50)
+describe('together cost', () => {
+  const kernel = (room: Room) => {
+    const { problem } = compile(makeStudents(1), makeConfig({ room }))
+    const S = problem.seats.length
+    return (a: string, b: string) => problem.kernels.together[problem.seatIndex.get(a)! * S + problem.seatIndex.get(b)!]
+  }
+
+  it('ranks the seats in the teacher’s order', () => {
+    const cost = kernel(makeRoom(4, 3))
+    const from = (target: string, keys: string[]) => keys.map((key) => cost(target, key))
+    // From the right seat of the middle table: same table, closest seat of the next table, the table behind (straight,
+    // diagonally) or in front, the other seat of the next table, diagonally behind (closest seat, other one), further.
+    expect(from('1-1-1', ['1-1-0', '1-2-0', '2-1-1', '2-1-0', '0-1-0', '1-2-1', '2-2-0', '2-2-1', '3-1-1'])).toEqual([
+      0, 6, 16, 16, 16, 22, 28, 34, 40,
+    ])
+    // From the left seat: the closest seat is on the left, the next table on the right is past the tablemate.
+    expect(from('1-1-0', ['1-0-1', '1-0-0', '1-2-0', '1-2-1'])).toEqual([6, 22, 22, 43])
+    expect(cost('0-0-0', '3-2-1')).toBe(WEIGHTS.together)
+  })
+
+  it('ranks single desks: the next desk, then in front or behind, then diagonally', () => {
+    const cost = kernel({ ...makeRoom(3, 4), seatsPerTable: 1 })
+    const keys = ['1-2-0', '1-0-0', '0-1-0', '2-1-0', '2-2-0', '0-0-0', '1-3-0']
+    expect(keys.map((key) => cost('1-1-0', key))).toEqual([0, 0, 16, 16, 28, 28, 40])
+  })
+
+  it('never decreases as the seats get further apart', () => {
+    const room = makeRoom(4, 3)
+    const seats = buildSeats(room)
+    const cost = kernel(room)
+    const x = (s: Seat) => 2 * s.table + s.side
+    for (const a of seats) {
+      for (const b of seats) {
+        for (const c of seats) {
+          if (a === b || b.row !== c.row) continue
+          if (Math.abs(x(c) - x(a)) > Math.abs(x(b) - x(a)) && Math.abs(c.row - a.row) === Math.abs(b.row - a.row)) {
+            expect(cost(a.key, c.key)).toBeGreaterThanOrEqual(cost(a.key, b.key))
+          }
+        }
+      }
+    }
   })
 })
 
@@ -117,7 +148,7 @@ describe('compile', () => {
       }),
     )
     expect(warnings).toEqual([
-      'Élève 0 et Élève 1 sont à la fois à séparer et en binôme.',
+      'Élève 0 et Élève 1 sont à la fois « À séparer » et « Ensemble ».',
       "Le cadenas de Élève 0 est ignoré : sa place n'est plus disponible.",
       "Le cadenas de Élève 2 est ignoré : sa place n'est plus disponible.",
       "2 élèves s'appellent « Élève 2 » : ajoute une initiale dans Mes classes pour les distinguer sur le plan.",

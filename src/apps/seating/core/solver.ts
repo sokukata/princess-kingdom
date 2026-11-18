@@ -37,7 +37,7 @@ export function solve(p: Problem, { seed, restarts = 4, iterations = 200_000 }: 
 }
 
 // Pairs of seats that move together, so that two neighbours change places without being split: the two seats of a
-// table, and two single desks side by side in a row (a student and her AESH, a binôme).
+// table, and two single desks side by side in a row (a student and her AESH, two students meant to be together).
 function pairBlocks(p: Problem): number[][] {
   const blocks = p.tableSeats.filter((seats) => seats.length === 2)
   p.tableSeats.forEach((seats, t) => {
@@ -81,15 +81,14 @@ function anneal(
     let s2: number
     let s3 = -1
     let s4 = -1
-    // Moving a whole pair of seats changes the place of two neighbours without splitting them.
+    // Two pairs of seats: trading them changes the place of two neighbours without splitting them; turning both round
+    // reaches the mirror image of a part of the plan, which single swaps only reach by going through a worse plan.
     if (blocks.length > 1 && random() < TABLE_MOVE_RATE) {
       const block1 = pick(blocks)
       const block2 = pick(blocks)
       if (block1.some((seat) => block2.includes(seat))) continue
-      s1 = block1[0]
-      s2 = block2[0]
-      s3 = block1[1]
-      s4 = block2[1]
+      if (random() < 0.5) [s1, s2, s3, s4] = [block1[0], block2[0], block1[1], block2[1]]
+      else [s1, s2, s3, s4] = [block1[0], block1[1], block2[0], block2[1]]
     } else {
       s1 = pick(movable)
       s2 = pick(movable)

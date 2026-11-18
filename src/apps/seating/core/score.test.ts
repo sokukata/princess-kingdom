@@ -52,9 +52,12 @@ describe('score', () => {
     const pairTables = problem.tableSeats.filter((seats) => seats.length === 2)
     for (let k = 0; k < 5000; k++) {
       let move: number[]
-      if (random() < 0.3) {
+      const r = random()
+      if (r < 0.4) {
         const [t1, t2] = [pairTables[pick(pairTables.length)], pairTables[pick(pairTables.length)]]
-        move = [t1[0], t2[0], t1[1], t2[1]]
+        if (t1 === t2) continue
+        // Trade two tables, or turn both round.
+        move = r < 0.2 ? [t1[0], t2[0], t1[1], t2[1]] : [t1[0], t1[1], t2[0], t2[1]]
       } else {
         move = [pick(problem.seats.length), pick(problem.seats.length), -1, -1]
       }

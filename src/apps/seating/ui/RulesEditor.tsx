@@ -25,7 +25,7 @@ export function RulesEditor({ students, config, update }: Props) {
             <li key={i}>
               <span>
                 <span aria-hidden="true">{rule.kind === 'separate' ? '⚔️ ' : '💞 '}</span>
-                {rule.kind === 'separate' ? 'À séparer' : 'Binôme'} :{' '}
+                {rule.kind === 'separate' ? 'À séparer' : 'Ensemble'} :{' '}
                 {rule.ids.map((id) => names.get(id) ?? 'élève retiré').join(', ')}
               </span>
               <button

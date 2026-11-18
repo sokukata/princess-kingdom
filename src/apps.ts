@@ -13,7 +13,7 @@ export const tools: Tool[] = [
     id: 'seating',
     title: 'Plan de classe',
     icon: '👑',
-    description: 'Place ta cour : bavards séparés, VIP devant, binômes, rotation…',
+    description: 'Place ta cour : bavards séparés, VIP devant, affinités réunies, rotation…',
     load: () => import('./apps/seating/SeatingApp.tsx'),
   },
   {

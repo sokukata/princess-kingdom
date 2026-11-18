@@ -68,10 +68,14 @@ function tableCost(p: Problem, a: Assignment, table: number): number {
   return mates ? p.tablemate[mates[0] * p.students.length + mates[1]] : 0
 }
 
-// Cost of the terms touching the moved students (-1 = empty seat) or the two tables; every student is seated.
-function localCost(p: Problem, a: Assignment, moved: number[], table1: number, table2: number): number {
+// Cost of the terms touching the moved students (-1 = empty seat) or their tables (-1 = none, each one once);
+// every student is seated. Called for every move tried, so it allocates nothing.
+function localCost(p: Problem, a: Assignment, moved: number[], t1: number, t2: number, t3: number, t4: number): number {
   const S = p.seats.length
-  let total = tableCost(p, a, table1) + (table2 === table1 ? 0 : tableCost(p, a, table2))
+  let total = tableCost(p, a, t1)
+  if (t2 !== t1) total += tableCost(p, a, t2)
+  if (t3 >= 0 && t3 !== t1 && t3 !== t2) total += tableCost(p, a, t3)
+  if (t4 >= 0 && t4 !== t1 && t4 !== t2 && t4 !== t3) total += tableCost(p, a, t4)
   for (const x of moved) {
     if (x < 0) continue
     const seat = a.seatOf[x]
@@ -88,9 +92,11 @@ function localCost(p: Problem, a: Assignment, moved: number[], table1: number, t
 export function moveDelta(p: Problem, a: Assignment, s1: number, s2: number, s3 = -1, s4 = -1): number {
   const o = a.occupant
   const moved = [o[s1], o[s2], s3 < 0 ? -1 : o[s3], s4 < 0 ? -1 : o[s4]]
-  const before = localCost(p, a, moved, p.tableOf[s1], p.tableOf[s2])
+  const [t1, t2] = [p.tableOf[s1], p.tableOf[s2]]
+  const [t3, t4] = [s3 < 0 ? -1 : p.tableOf[s3], s4 < 0 ? -1 : p.tableOf[s4]]
+  const before = localCost(p, a, moved, t1, t2, t3, t4)
   applyMove(a, s1, s2, s3, s4)
-  const after = localCost(p, a, moved, p.tableOf[s1], p.tableOf[s2])
+  const after = localCost(p, a, moved, t1, t2, t3, t4)
   applyMove(a, s1, s2, s3, s4)
   return after - before
 }
@@ -144,7 +150,7 @@ export function explain(p: Problem, a: Assignment): Issue[] {
       const points = p.kernels[kind][seat * S + otherSeat]
       const pair = `${name(x)} et ${name(other)}`
       if (kind === 'separate') add(kind, points, `${pair} (à séparer) ${gap(p.seats[seat], p.seats[otherSeat])}`, x, other)
-      else if (kind === 'together') add(kind, points, `${pair} (binôme) ne sont pas côte à côte`, x, other)
+      else if (kind === 'together') add(kind, points, `${pair} (ensemble) ${apart(p.seats[seat], p.seats[otherSeat])}`, x, other)
       // The student comes before her AESH among the occupants.
       else add(kind, points, `${name(x)} et son AESH ne sont pas côte à côte`, x, other)
     }
@@ -163,6 +169,21 @@ export function explain(p: Problem, a: Assignment): Issue[] {
     )
   }
   return issues.sort((i, j) => j.points - i.points)
+}
+
+// Where two students meant to be together sit, when not next to each other.
+function apart(a: Seat, b: Seat): string {
+  const rows = Math.abs(a.row - b.row)
+  const tables = Math.abs(a.table - b.table)
+  // Only tables of two seats get here with neighbouring tables: single desks side by side count as next to each other.
+  if (rows === 0 && tables === 1) {
+    const across = a.table < b.table ? a.side > b.side : b.side > a.side
+    return across ? "sont côte à côte, de part et d'autre de l'allée" : 'sont à deux tables voisines, pas côte à côte'
+  }
+  if (rows === 0) return `sont au même rang, à ${tables} tables d'écart`
+  const where = rows === 1 ? "à un rang d'écart" : `à ${rows} rangs d'écart`
+  if (tables === 0) return `sont l'un derrière l'autre, ${where}`
+  return `sont ${where}, à ${tables} table${tables > 1 ? 's' : ''} d'écart`
 }
 
 function gap(a: Seat, b: Seat): string {
